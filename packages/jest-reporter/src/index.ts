@@ -85,18 +85,23 @@ class JestReporter implements Reporter {
                 this.eventHandler.queueEvent('pass', passData);
             } else if (result.status === 'failed') {
                 this.failureCount++;
+                const stripAnsi = (str: string): string => {
+                    return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+                };
+                // @ts-expect-error - matcherResult is not defined in the type
+                const errorMessage = stripAnsi(result.failureDetails?.[0]?.matcherResult?.message || result.failureMessages.join('\n'));
+                const stackTrace = stripAnsi(result.failureMessages.join('\n'));
+
                 const failData = this.eventHandler.eventNormalizer.normalizeTestFail({
-                        testId,
-                        title: result.title,
-                        error: result.failureMessages.join('\n'),
-                        stack: '',
-                        // stack: result.failureDetails?.[0]?.stack || '',
-                        testSuite: {
-                            rabbitMqId: suite.id,
-                            title: suite.title
-                        }
+                    testId,
+                    title: result.title,
+                    error: errorMessage,
+                    stack: stackTrace,
+                    testSuite: {
+                        rabbitMqId: suite.id,
+                        title: suite.title
                     }
-                );
+                });
                 this.eventHandler.queueEvent('fail', failData);
             }
         });
@@ -118,6 +123,9 @@ class JestReporter implements Reporter {
 
         // Clear the cache
         this.testBodyCache.clear();
+
+        // Exit the process based on the failure count
+        // process.exit(this.failureCount > 0 ? 1 : 0);
     }
 
     private getSuiteTitle(test: Test): string {

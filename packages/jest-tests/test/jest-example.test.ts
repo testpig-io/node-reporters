@@ -17,4 +17,8 @@ describe('Example Test Suite', () => {
             }, 100);
         });
     });
+
+    it('should fail a test', () => {
+        expect(true).toBe(false);
+    });
 });
