@@ -83,11 +83,13 @@ export class TestEventNormalizer {
         });
     }
 
-    normalizeTestPass(
-        testId: string,
-        title: string,
-        duration: number,
-        testSuite: TestSuiteDetails
+    normalizeTestPass({testId, title, duration, testSuite, retries}: {
+                          testId: string,
+                          title: string,
+                          duration: number,
+                          testSuite: TestSuiteDetails,
+                          retries?: number
+                      }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
 
@@ -106,13 +108,19 @@ export class TestEventNormalizer {
         });
     }
 
-    normalizeTestFail(
-        testId: string,
-        title: string,
-        error: string,
-        stack: string,
-        duration: number,
-        testSuite: TestSuiteDetails
+    normalizeTestFail({
+                          testId,
+                          title,
+                          error,
+                          stack,
+                          testSuite
+                      }: {
+                          testId: string,
+                          title: string,
+                          error: string,
+                          stack: string,
+                          testSuite: TestSuiteDetails
+                      }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
 
@@ -128,7 +136,6 @@ export class TestEventNormalizer {
             error,
             stack,
             status: TestStatus.FAILED,
-            duration,
             endTime: new Date()
         });
     }

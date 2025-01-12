@@ -1,4 +1,10 @@
 import { RabbitMQConfig } from './types';
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+
+// Resolve the path to the .env file
+const envPath = resolve(__dirname, '../../shared/.env');
+dotenv.config({ path: envPath });
 
 export function getRabbitMQConfig(): RabbitMQConfig {
     return {

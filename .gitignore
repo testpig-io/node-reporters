@@ -1,1 +1,8 @@
 node_modules
+packages/cypress-tests/cypress/screenshots/*
+
+.env
+**/.env
+
+**/dist
+**/tsconfig.tsbuildinfo

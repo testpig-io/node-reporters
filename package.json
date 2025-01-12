@@ -10,6 +10,7 @@
     "build:core": "cd packages/core && npm run build",
     "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build",
     "test": "lerna run test",
+    "test:cypress": "cd packages/cypress-tests && npx cypress run",
     "lint": "lerna run lint",
     "clean": "lerna clean"
   },

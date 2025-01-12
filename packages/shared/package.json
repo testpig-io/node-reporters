@@ -9,7 +9,9 @@
     "test": "jest"
   },
   "dependencies": {
+    "@types/dotenv": "^8.2.3",
     "amqplib": "^0.10.3",
+    "dotenv": "^16.4.7",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
-import { TestEventHandler } from '@testpig/core';
-import { v4 as uuidv4 } from 'uuid';
+import {TestEventHandler} from '@testpig/core';
+import {v4 as uuidv4} from 'uuid';
 
 interface CypressReporterOptions {
     projectId?: string;
@@ -12,8 +12,6 @@ class CypressReporter {
 
     constructor(runner: any, options: { reporterOptions?: CypressReporterOptions } = {}) {
         const reporterOptions = options.reporterOptions || {};
-
-        console.log("REPORTER OPTIONS: ", reporterOptions);
 
         if (!reporterOptions.projectId) {
             throw new Error('projectId is required in reporterOptions');
@@ -38,7 +36,7 @@ class CypressReporter {
             const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
                 suiteId,
                 suite.title,
-                suite.file,
+                suite.invocationDetails.relativeFile,
                 suite.tests?.length || 0,
                 {
                     os: process.platform,
@@ -59,7 +57,7 @@ class CypressReporter {
             const data = this.eventHandler.eventNormalizer.normalizeTestStart(
                 testId,
                 test.title,
-                test.file,
+                test.invocationDetails.relativeFile,
                 test.body,
                 {
                     rabbitMqId: test.parent?.testSuiteId,
@@ -70,13 +68,15 @@ class CypressReporter {
         });
 
         runner.on('pass', (test: any) => {
-            const data = this.eventHandler.eventNormalizer.normalizeTestPass(
-                test.testCaseId,
-                test.title,
-                test.duration,
-                {
-                    rabbitMqId: test.parent?.testSuiteId,
-                    title: test.parent?.title
+            const data = this.eventHandler.eventNormalizer.normalizeTestPass({
+                    testId: test.testCaseId,
+                    title: test.title,
+                    duration: test.duration,
+                    testSuite: {
+                        rabbitMqId: test.parent?.testSuiteId,
+                        title: test.parent?.title
+                    },
+                    retries: test._retries
                 }
             );
             this.eventHandler.queueEvent('pass', data);
@@ -84,19 +84,52 @@ class CypressReporter {
 
         runner.on('fail', (test: any, err: Error) => {
             this.failureCount++;
-            const data = this.eventHandler.eventNormalizer.normalizeTestFail(
-                test.testCaseId,
-                test.title,
-                err.message,
-                err.stack || '',
-                test.duration,
-                {
-                    rabbitMqId: test.parent?.testSuiteId,
-                    title: test.parent?.title
+            const data = this.eventHandler.eventNormalizer.normalizeTestFail({
+                    testId: test.testCaseId,
+                    title: test.title,
+                    error: err.message,
+                    stack: err.stack || '',
+                    testSuite: {
+                        rabbitMqId: test.parent?.testSuiteId,
+                        title: test.parent?.title
+                    }
                 }
             );
+
             this.eventHandler.queueEvent('fail', data);
         });
+
+        // runner.on('test end', (test: any) => {
+        //     console.log("THIS ReaCHED HERE");
+        // });
+
+        // runner.on('test end', (test: any, err: Error) => {
+        //     if (test.state === 'failed') {
+        //         this.failureCount++;
+        //
+        //         const data = this.eventHandler.eventNormalizer.normalizeTestFail(
+        //             test.testCaseId,
+        //             test.title,
+        //             err.message,
+        //             err.stack || '',
+        //             test.duration,
+        //             {
+        //                 rabbitMqId: test.parent?.testSuiteId,
+        //                 title: test.parent?.title
+        //             }
+        //         );
+        //     } else {
+        //         const data = this.eventHandler.eventNormalizer.normalizeTestPass(
+        //             test.testCaseId,
+        //             test.title,
+        //             test.duration,
+        //             {
+        //                 rabbitMqId: test.parent?.testSuiteId,
+        //                 title: test.parent?.title
+        //             }
+        //         );
+        //     }
+        // });
 
         runner.on('suite end', (suite: any) => {
             if (!suite.title || suite.root) return;
