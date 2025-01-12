@@ -8,10 +8,11 @@
     "build": "npm run build:shared && npm run build:core && npm run build:reporters",
     "build:shared": "cd packages/shared && npm run build",
     "build:core": "cd packages/core && npm run build",
-    "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build",
+    "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build && cd ../jest-reporter && npm run build",
     "test": "lerna run test",
     "test:cypress": "cd packages/cypress-tests && npx cypress run",
     "test:mocha": "cd packages/mocha-tests && npm test",
+    "test:jest": "cd packages/jest-tests && npm test",
     "lint": "lerna run lint",
     "clean": "lerna clean"
   },
