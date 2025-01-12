@@ -124,8 +124,11 @@ class JestReporter implements Reporter {
         // Clear the cache
         this.testBodyCache.clear();
 
-        // Exit the process based on the failure count
-        // process.exit(this.failureCount > 0 ? 1 : 0);
+        // Exit with appropriate code after a short delay to allow event queue processing
+        setTimeout(() => {
+            process.exit(this.failureCount > 0 ? 1 : 0);
+        }, 100);
+
     }
 
     private getSuiteTitle(test: Test): string {
