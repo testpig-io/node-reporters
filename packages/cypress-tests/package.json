@@ -1,0 +1,14 @@
+{
+  "name": "@testpig/cypress-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "cypress run",
+    "cypress:open": "cypress open"
+  },
+  "devDependencies": {
+    "@testpig/cypress-reporter": "1.0.0",
+    "cypress": "^13.3.0",
+    "typescript": "^5.2.2"
+  }
+}

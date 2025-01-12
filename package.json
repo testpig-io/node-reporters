@@ -1,0 +1,20 @@
+{
+  "name": "testpig",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build:shared && npm run build:core && npm run build:reporters",
+    "build:shared": "cd packages/shared && npm run build",
+    "build:core": "cd packages/core && npm run build",
+    "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build",
+    "test": "lerna run test",
+    "lint": "lerna run lint",
+    "clean": "lerna clean"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.2",
+    "typescript": "^5.2.2"
+  }
+}

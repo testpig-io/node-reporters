@@ -1,0 +1,13 @@
+{
+  "version": "independent",
+  "npmClient": "npm",
+  "command": {
+    "publish": {
+      "conventionalCommits": true,
+      "yes": true
+    }
+  },
+  "packages": [
+    "packages/*"
+  ]
+}
