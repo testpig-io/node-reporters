@@ -11,6 +11,7 @@
     "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build",
     "test": "lerna run test",
     "test:cypress": "cd packages/cypress-tests && npx cypress run",
+    "test:mocha": "cd packages/mocha-tests && npm test",
     "lint": "lerna run lint",
     "clean": "lerna clean"
   },

@@ -3,8 +3,8 @@ import { defineConfig } from 'cypress';
 export default defineConfig({
   reporter: '../cypress-reporter/dist/index.js',
   reporterOptions: {
-    projectId: "d2b95",
-    runId: "New Node Reporter 3"
+    projectId: process.env.TESTPIG_PROJECT_ID || "d2b95",
+    runId: process.env.TESTPIG_RUN_ID || "New Node Reporter 3"
   },
   e2e: {
     setupNodeEvents(on, config) {

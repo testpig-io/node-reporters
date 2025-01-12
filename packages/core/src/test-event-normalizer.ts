@@ -17,7 +17,14 @@ export class TestEventNormalizer {
 
     constructor(projectId: string, runId?: string) {
         this.projectId = projectId;
-        this.testRunTitle = runId || execSync('git rev-parse --abbrev-ref HEAD', {encoding: 'utf8'}).trim();
+        if(!projectId) {
+            console.warn('projectId is not provided. Test results will not be sent to TestPig!');
+        }
+        if(!runId) {
+            console.log('runId is not provided. Using current git branch name as run title');
+        }
+
+        this.testRunTitle = runId || getGitInfo().branch;
     }
 
     normalizeRunStart(): MessageData {

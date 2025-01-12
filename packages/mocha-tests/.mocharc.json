@@ -1,0 +1,8 @@
+{
+  "require": ["ts-node/register"],
+  "reporter": "../mocha-reporter/dist/index.js",
+  "reporter-option": ["projectId=d2b95", "runId=did this override??"],
+  "timeout": 5000,
+  "extension": ["ts"],
+  "spec": ["test/**/*.test.ts"]
+}
