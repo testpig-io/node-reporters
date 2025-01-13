@@ -1,20 +1,20 @@
-describe('Example Test Suite', () => {
-    it('mocha - should open browser and verify title', async () => {
+describe('Example Jasmine Test Suite', () => {
+    it('jasmine - should open browser and verify title', async () => {
         await browser.url('https://webdriver.io');
         const title = await browser.getTitle();
         expect(title).toContain('WebdriverIO');
     });
 
-    it('mocha - should perform basic assertions', () => {
+    it('jasmine - should perform basic assertions', () => {
         expect(2 + 2).toBe(4);
         expect(typeof 'hello').toBe('string');
-        expect([1, 2, 3]).toHaveLength(3);
+        expect([1, 2, 3].length).toBe(3);
     });
 
-    it('mocha - should handle async operations', async () => {
+    it('jasmine - should handle async operations', async () => {
         await new Promise<void>(resolve => {
             setTimeout(() => {
-                expect(true).toBe(true);
+                expect(true).toBeTruthy();
                 resolve();
             }, 100);
         });

@@ -3,17 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "wdio run ./wdio.conf.ts"
+    "test": "npm run test:mocha && npm run test:cucumber && npm run test:jasmine",
+    "test:mocha": "wdio run ./wdio.conf.ts",
+    "test:cucumber": "wdio run ./wdio.cucumber.conf.ts",
+    "test:jasmine": "wdio run ./wdio.jasmine.conf.ts"
   },
   "devDependencies": {
     "@testpig/webdriverio-reporter": "1.0.0",
     "@wdio/cli": "^8.16.3",
+    "@wdio/cucumber-framework": "^8.16.3",
+    "@wdio/jasmine-framework": "^8.16.3",
     "@wdio/local-runner": "^8.16.3",
     "@wdio/mocha-framework": "^8.16.3",
     "@wdio/spec-reporter": "^8.16.3",
-    "chromedriver": "^131.0.5",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2",
+    "chromedriver": "^131.0.5",
     "wdio-chromedriver-service": "^8.1.1"
+
   }
 }

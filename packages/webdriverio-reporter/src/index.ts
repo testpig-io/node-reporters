@@ -1,7 +1,7 @@
 import WDIOReporter from '@wdio/reporter';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
-import fs from 'fs';
+import { TestBodyCache } from './test-body-cache';
 
 interface SuiteInfo {
     id: string;
@@ -16,6 +16,7 @@ class WebdriverIOReporter extends WDIOReporter {
     private currentSuite: SuiteInfo | null = null;
     private testRunId: string;
     private pendingTests = new Map<string, { id: string; title: string }>();
+    private testBodyCache = new TestBodyCache();
 
     constructor(options: any) {
         // Ensure we pass the proper options structure to WDIOReporter
@@ -39,22 +40,20 @@ class WebdriverIOReporter extends WDIOReporter {
     }
 
     onSuiteStart(suite: any): void {
-        console.log("STARTING THE SUITE!: ", suite);
-
-        console.log("SUITE.TITLE: ", suite.title);
-        console.log("SUITE.TYPE: ", suite.type);
-        if (!suite.title || suite.type !== 'suite:start') return;
-
-        console.log("MADE IT PAST THE IF STATEMENT!");
-        console.log("CURRENTSUITE: ", this.currentSuite);
+        const suiteTypes = ['suite:start', 'scenario'];
+        if (!suite.title || !suiteTypes.some((type) => type === suite.type)) return;
 
         // End previous suite if exists
         if (this.currentSuite) {
             this.endCurrentSuite(false);
         }
 
+        // Cache test bodies when suite starts
+        if (suite.file) {
+            this.testBodyCache.cacheTestBodies(suite.file);
+        }
+
         const suiteId = uuidv4();
-        console.log("GOT THE SUITE ID: ", suiteId);
         this.currentSuite = {
             id: suiteId,
             title: suite.title,
@@ -90,7 +89,7 @@ class WebdriverIOReporter extends WDIOReporter {
             testId,
             test.title,
             test.file || this.currentSuite.file,
-            test.body,
+            this.getTestBody(test),
             {
                 rabbitMqId: this.currentSuite.id,
                 title: this.currentSuite.title
@@ -146,7 +145,10 @@ class WebdriverIOReporter extends WDIOReporter {
     }
 
     onSuiteEnd(suite: any): void {
-        if (!this.currentSuite || suite.type !== 'suite:end') return;
+
+        const suiteTypes = ['suite:end', 'feature'];
+        console.log("SUITE END: ", suite);
+        if (!this.currentSuite || !suiteTypes.some((type) => type === suite.type)) return;
         this.endCurrentSuite(suite.tests?.some((t: any) => t.state === 'failed') || false);
     }
 
@@ -171,6 +173,16 @@ class WebdriverIOReporter extends WDIOReporter {
         );
         this.eventHandler.queueEvent('suite end', data);
         this.currentSuite = null;
+    }
+
+    private getTestBody(test: any): string {
+        try {
+            if (!test.file) return '';
+            return this.testBodyCache.getTestBody(test.file, test.title);
+        } catch (error) {
+            console.error('Error getting test body:', error);
+            return '';
+        }
     }
 }
 
