@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "es2019",
+    "module": "commonjs",
+    "types": ["node", "@wdio/globals/types", "@wdio/mocha-framework"],
+    "outDir": "./dist",
+    "rootDir": "./",
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "test/**/*.ts",
+    "wdio.conf.ts"
+  ]
+}
