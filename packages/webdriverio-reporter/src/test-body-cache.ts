@@ -18,16 +18,13 @@ export class TestBodyCache {
             const content = fs.readFileSync(filePath, 'utf8');
             const isCucumber = content.includes('Feature:');
 
-            console.log("CONTENT!: ", content)
-
             const testBodies = new Map<string, TestBody>();
             const lines = content.split('\n');
 
             if (isCucumber) {
-                console.log("IN CUCUMBER")
                 this.parseCucumberFile(lines, testBodies);
             } else {
-                return;
+                this.parseMochaFile(lines, testBodies);
             }
 
             this.fileCache.set(filePath, {
@@ -56,7 +53,6 @@ export class TestBodyCache {
         let scenarioStart = -1;
 
         lines.forEach((line, index) => {
-            console.log("SCENARIO: ", currentScenario)
             const trimmedLine = line.trim();
 
             if (trimmedLine.startsWith('Scenario:')) {
