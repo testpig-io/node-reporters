@@ -12,3 +12,6 @@ Feature: Example Feature
 
   Scenario: BDD - Async operations
     Then async operations should work
+
+  Scenario: BDD - Fail test
+    Then the test should fail

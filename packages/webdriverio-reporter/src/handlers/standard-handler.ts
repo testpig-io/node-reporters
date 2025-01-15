@@ -63,7 +63,7 @@ export class StandardHandler implements BaseHandler {
         if (!this.currentSuite) return;
 
         const testId = uuidv4();
-        const testBody = this.testBodyCache.getTestBody(test.file || this.currentSuite.file, test.title);
+        const testBody = test.body ? test.body : this.testBodyCache.getTestBody(test.file || this.currentSuite.file, test.title);
 
         const data = this.eventHandler.eventNormalizer.normalizeTestStart(
             testId,

@@ -1,4 +1,4 @@
-describe('Example Jasmine Test Suite', () => {
+describe('Example Test Suite', () => {
     it('jasmine - should open browser and verify title', async () => {
         await browser.url('https://webdriver.io');
         const title = await browser.getTitle();
@@ -18,5 +18,9 @@ describe('Example Jasmine Test Suite', () => {
                 resolve();
             }, 100);
         });
+    });
+
+    it('jasmine - should fail the test', () => {
+        expect(true).toBeFalsy();
     });
 });

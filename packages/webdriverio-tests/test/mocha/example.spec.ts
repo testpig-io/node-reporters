@@ -1,5 +1,5 @@
-describe('Example Test Suite - Mocha', () => {
-    it.only('mocha - should open browser and verify title', async () => {
+describe('Example Test Suite', () => {
+    it('mocha - should open browser and verify title', async () => {
         await browser.url('https://webdriver.io');
         const title = await browser.getTitle();
         expect(title).toContain('WebdriverIO');
@@ -19,4 +19,8 @@ describe('Example Test Suite - Mocha', () => {
             }, 100);
         });
     });
+
+    it('mocha - should fail the test', ()=>{
+        expect(true).toBe(false);
+    })
 });

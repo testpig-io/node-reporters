@@ -1,5 +1,3 @@
-import { TestEventHandler } from '@testpig/core';
-
 export interface TestHandlerConfig {
     projectId: string;
     runId?: string;

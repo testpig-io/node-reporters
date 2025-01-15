@@ -23,3 +23,7 @@ Then('async operations should work', async () => {
         }, 100);
     });
 });
+
+Then('the test should fail', () => {
+    expect(true).toBe(false);
+});
