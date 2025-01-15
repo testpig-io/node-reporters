@@ -21,4 +21,8 @@ test.describe('Example Test Suite', () => {
             }, 100);
         });
     });
+
+    test('should fail the test', async() => {
+        expect(true).toBe(false);
+    });
 });

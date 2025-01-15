@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "npm run test:mocha && npm run test:cucumber && npm run test:jasmine",
+    "test": "npm run test:mocha; npm run test:cucumber; npm run test:jasmine",
     "test:mocha": "wdio run ./wdio.mocha.conf.ts",
     "test:cucumber": "wdio run ./wdio.cucumber.conf.ts",
     "test:jasmine": "wdio run ./wdio.jasmine.conf.ts"
