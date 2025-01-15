@@ -4,6 +4,7 @@ import {Config} from '@jest/types';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import {TestBodyCache} from './test-body-cache';
+import {TestEventsEnum} from "@testpig/shared";
 
 class JestReporter implements Reporter {
     private eventHandler: TestEventHandler;
@@ -21,7 +22,7 @@ class JestReporter implements Reporter {
 
     onRunStart(): void {
         const data = this.eventHandler.eventNormalizer.normalizeRunStart();
-        this.eventHandler.queueEvent('start', data);
+        this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
     }
 
     onTestStart(test: Test): void {
@@ -46,7 +47,7 @@ class JestReporter implements Reporter {
                 },
                 'unit'
             );
-            this.eventHandler.queueEvent('suite', data);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         }
     }
 
@@ -69,7 +70,7 @@ class JestReporter implements Reporter {
                     title: suite.title
                 }
             );
-            this.eventHandler.queueEvent('test', startData);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_START, startData);
 
             if (result.status === 'passed') {
                 const passData = this.eventHandler.eventNormalizer.normalizeTestPass({
@@ -82,7 +83,7 @@ class JestReporter implements Reporter {
                         }
                     }
                 );
-                this.eventHandler.queueEvent('pass', passData);
+                this.eventHandler.queueEvent(TestEventsEnum.TEST_PASS, passData);
             } else if (result.status === 'failed') {
                 this.failureCount++;
                 // @ts-expect-error - matcherResult is not defined in the type
@@ -99,7 +100,7 @@ class JestReporter implements Reporter {
                         title: suite.title
                     }
                 });
-                this.eventHandler.queueEvent('fail', failData);
+                this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, failData);
             }
         });
 
@@ -110,12 +111,12 @@ class JestReporter implements Reporter {
             suite.title,
             hasFailed
         );
-        this.eventHandler.queueEvent('suite end', suiteEndData);
+        this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
     }
 
     onRunComplete(): void {
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
-        this.eventHandler.queueEvent('end', data);
+        this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
         this.eventHandler.processEventQueue();
 
         // Clear the cache

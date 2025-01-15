@@ -6,6 +6,17 @@ export enum TestStatus {
     RUNNING = 'running',
 }
 
+export enum TestEventsEnum {
+    RUN_START = 'start',
+    RUN_END = 'end',
+    SUITE_START = 'suite',
+    SUITE_END = 'suite end',
+    TEST_START = 'test',
+    TEST_END = 'test end',
+    TEST_PASS = 'pass',
+    TEST_FAIL = 'fail',
+}
+
 export type TestRunDetails = {
     rabbitMqId?: string;
     title?: string;

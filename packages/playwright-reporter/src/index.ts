@@ -2,6 +2,7 @@ import {Reporter, TestCase, TestResult, TestStep, TestError, FullConfig, Suite} 
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import fs from 'fs';
+import {TestEventsEnum} from "@testpig/shared";
 
 interface SuiteInfo {
     id: string;
@@ -24,7 +25,7 @@ class PlaywrightReporter implements Reporter {
 
     onBegin(config: FullConfig, suite: Suite): void {
         const data = this.eventHandler.eventNormalizer.normalizeRunStart();
-        this.eventHandler.queueEvent('start', data);
+        this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
     }
 
     onTestBegin(test: TestCase): void {
@@ -40,7 +41,7 @@ class PlaywrightReporter implements Reporter {
                     this.currentSuite.title,
                     false
                 );
-                this.eventHandler.queueEvent('suite end', suiteEndData);
+                this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
             }
 
             const suiteId = uuidv4();
@@ -64,7 +65,7 @@ class PlaywrightReporter implements Reporter {
                 },
                 'e2e'
             );
-            this.eventHandler.queueEvent('suite', suiteData);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, suiteData);
         }
 
         // Handle test start
@@ -81,7 +82,7 @@ class PlaywrightReporter implements Reporter {
                 title: this.currentSuite.title
             }
         );
-        this.eventHandler.queueEvent('test', testData);
+        this.eventHandler.queueEvent(TestEventsEnum.TEST_START, testData);
 
         // Store test ID for later use
         (test as any).testCaseId = testId;
@@ -102,7 +103,7 @@ class PlaywrightReporter implements Reporter {
                     }
                 }
             );
-            this.eventHandler.queueEvent('pass', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_PASS, data);
         } else if (result.status === 'failed') {
             this.failureCount++;
             const error = result.error || {};
@@ -118,7 +119,7 @@ class PlaywrightReporter implements Reporter {
                     }
                 }
             );
-            this.eventHandler.queueEvent('fail', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, data);
         }
     }
 
@@ -130,7 +131,7 @@ class PlaywrightReporter implements Reporter {
                 this.currentSuite.title,
                 false
             );
-            this.eventHandler.queueEvent('suite end', suiteEndData);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
         }
 
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);

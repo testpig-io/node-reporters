@@ -1,4 +1,4 @@
-import {TestStatus, MessageData, TestRunDetails, TestSuiteDetails, getGitInfo} from '@testpig/shared';
+import {TestStatus, MessageData, TestRunDetails, TestSuiteDetails, getGitInfo, TestEventsEnum} from '@testpig/shared';
 import {v4 as uuidv4} from 'uuid';
 
 export interface SystemInfo {
@@ -7,6 +7,16 @@ export interface SystemInfo {
     browser: string;
     framework: string;
     frameworkVersion: string;
+}
+
+export enum TestEvents {
+    RUN_START = 'run start',
+    SUITE_START = 'suite',
+    TEST_START = 'test start',
+    TEST_PASS = 'test pass',
+    TEST_FAIL = 'test fail',
+    SUITE_END = 'suite end',
+    RUN_END = 'run end'
 }
 
 export class TestEventNormalizer {
@@ -51,7 +61,7 @@ export class TestEventNormalizer {
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
 
-        return new MessageData('suite', {
+        return new MessageData(TestEventsEnum.SUITE_START, {
             fileName,
             projectId: this.projectId,
             status: TestStatus.RUNNING,
@@ -77,7 +87,7 @@ export class TestEventNormalizer {
         testBody: string,
         testSuite: TestSuiteDetails
     ): MessageData {
-        return new MessageData('test', {
+        return new MessageData(TestEventsEnum.TEST_START, {
             projectId: this.projectId,
             rabbitMqId: testId,
             startTime: new Date(),
@@ -99,7 +109,7 @@ export class TestEventNormalizer {
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
 
-        return new MessageData('pass', {
+        return new MessageData(TestEventsEnum.TEST_PASS, {
             projectId: this.projectId,
             rabbitMqId: testId,
             testSuite,
@@ -133,7 +143,7 @@ export class TestEventNormalizer {
             return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
         };
 
-        return new MessageData('fail', {
+        return new MessageData(TestEventsEnum.TEST_FAIL, {
             projectId: this.projectId,
             rabbitMqId: testId,
             testSuite,
@@ -156,7 +166,7 @@ export class TestEventNormalizer {
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
 
-        return new MessageData('suite end', {
+        return new MessageData(TestEventsEnum.SUITE_END, {
             projectId: this.projectId,
             endTime: new Date(),
             rabbitMqId: suiteId,
@@ -172,7 +182,7 @@ export class TestEventNormalizer {
     normalizeRunEnd(hasFailed: boolean): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
 
-        return new MessageData('end', {
+        return new MessageData(TestEventsEnum.RUN_END, {
             rabbitMqId: existingTestRun?.rabbitMqId,
             title: this.testRunTitle,
             status: hasFailed ? TestStatus.FAILED : TestStatus.PASSED,

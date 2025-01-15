@@ -1,5 +1,6 @@
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
+import {TestEventsEnum} from "@testpig/shared";
 
 interface CypressReporterOptions {
     projectId?: string;
@@ -24,7 +25,7 @@ class CypressReporter {
     private setupEventHandlers(runner: any) {
         runner.on('start', () => {
             const data = this.eventHandler.eventNormalizer.normalizeRunStart();
-            this.eventHandler.queueEvent('start', data);
+            this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
         });
 
         runner.on('suite', (suite: any) => {
@@ -47,7 +48,7 @@ class CypressReporter {
                 },
                 'e2e'
             );
-            this.eventHandler.queueEvent('suite', data);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         });
 
         runner.on('test', (test: any) => {
@@ -64,7 +65,7 @@ class CypressReporter {
                     title: test.parent?.title
                 }
             );
-            this.eventHandler.queueEvent('test', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_START, data);
         });
 
         runner.on('pass', (test: any) => {
@@ -79,7 +80,7 @@ class CypressReporter {
                     retries: test._retries
                 }
             );
-            this.eventHandler.queueEvent('pass', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_PASS, data);
         });
 
         runner.on('fail', (test: any, err: Error) => {
@@ -96,7 +97,7 @@ class CypressReporter {
                 }
             );
 
-            this.eventHandler.queueEvent('fail', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, data);
         });
 
         // runner.on('test end', (test: any) => {
@@ -140,12 +141,12 @@ class CypressReporter {
                 suite.title,
                 hasFailed
             );
-            this.eventHandler.queueEvent('suite end', data);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, data);
         });
 
         runner.on('end', () => {
             const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
-            this.eventHandler.queueEvent('end', data);
+            this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
             this.eventHandler.processEventQueue();
         });
     }

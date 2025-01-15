@@ -1,6 +1,7 @@
 import * as Mocha from 'mocha';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
+import {TestEventsEnum} from "@testpig/shared";
 
 class MochaReporter extends Mocha.reporters.Spec {
     private eventHandler: TestEventHandler;
@@ -22,7 +23,7 @@ class MochaReporter extends Mocha.reporters.Spec {
     private setupEventHandlers(runner: Mocha.Runner) {
         runner.on('start', () => {
             const data = this.eventHandler.eventNormalizer.normalizeRunStart();
-            this.eventHandler.queueEvent('start', data);
+            this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
         });
 
         runner.on('suite', (suite: Mocha.Suite) => {
@@ -45,7 +46,7 @@ class MochaReporter extends Mocha.reporters.Spec {
                 },
                 'unit'
             );
-            this.eventHandler.queueEvent('suite', data);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         });
 
         runner.on('test', (test: Mocha.Test) => {
@@ -62,7 +63,7 @@ class MochaReporter extends Mocha.reporters.Spec {
                     title: test.parent?.title
                 }
             );
-            this.eventHandler.queueEvent('test', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_START, data);
         });
 
         runner.on('pass', (test: Mocha.Test) => {
@@ -77,7 +78,7 @@ class MochaReporter extends Mocha.reporters.Spec {
                     }
                 }
             );
-            this.eventHandler.queueEvent('pass', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_PASS, data);
         });
 
         runner.on('fail', (test: Mocha.Test, err: Error) => {
@@ -93,7 +94,7 @@ class MochaReporter extends Mocha.reporters.Spec {
                         title: test.parent?.title
                     }
                 });
-            this.eventHandler.queueEvent('fail', data);
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, data);
         })
         ;
 
@@ -106,12 +107,12 @@ class MochaReporter extends Mocha.reporters.Spec {
                 suite.title,
                 hasFailed
             );
-            this.eventHandler.queueEvent('suite end', data);
+            this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, data);
         });
 
         runner.on('end', () => {
             const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
-            this.eventHandler.queueEvent('end', data);
+            this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
             this.eventHandler.processEventQueue();
 
             // Exit with appropriate code after a short delay to allow event queue processing
