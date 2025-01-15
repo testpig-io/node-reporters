@@ -50,34 +50,59 @@ export class TestBodyCache {
 
     private parseCucumberFile(lines: string[], testBodies: Map<string, TestBody>): void {
         let currentScenario: string | null = null;
+        let currentFeature: string | null = null;
         let scenarioStart = -1;
 
         lines.forEach((line, index) => {
             const trimmedLine = line.trim();
 
-            if (trimmedLine.startsWith('Scenario:')) {
-                // If we were processing a previous scenario, save it
+            if (trimmedLine.startsWith('Feature:')) {
+                // Extract Feature name as suite
+                currentFeature = trimmedLine.substring('Feature:'.length).trim();
+            } else if (trimmedLine.startsWith('Scenario:')) {
+                // Save the previous scenario if applicable
                 if (currentScenario !== null && scenarioStart !== -1) {
-                    this.saveScenario(lines, scenarioStart, index - 1, currentScenario, testBodies);
+                    const scenarioBody = lines
+                        .slice(scenarioStart + 1, index)
+                        .map(l => l.trim())
+                        .filter(l => l && !l.startsWith('Scenario:') && !l.startsWith('Feature:'))
+                        .join('\n');
+
+                    testBodies.set(currentScenario, {
+                        content: scenarioBody,
+                        type: 'cucumber'
+                    });
                 }
 
+                // Start a new scenario
                 currentScenario = trimmedLine.substring('Scenario:'.length).trim();
                 scenarioStart = index;
-            } else if (trimmedLine.startsWith('Feature:') || trimmedLine === '') {
-                // End of current scenario
-                if (currentScenario !== null && scenarioStart !== -1) {
-                    this.saveScenario(lines, scenarioStart, index - 1, currentScenario, testBodies);
-                    currentScenario = null;
-                    scenarioStart = -1;
-                }
             }
         });
 
-        // Save the last scenario if exists
+        // Handle the last scenario
         if (currentScenario !== null && scenarioStart !== -1) {
-            this.saveScenario(lines, scenarioStart, lines.length - 1, currentScenario, testBodies);
+            const scenarioBody = lines
+                .slice(scenarioStart + 1)
+                .map(l => l.trim())
+                .filter(l => l && !l.startsWith('Scenario:') && !l.startsWith('Feature:'))
+                .join('\n');
+
+            testBodies.set(currentScenario, {
+                content: scenarioBody,
+                type: 'cucumber'
+            });
+        }
+
+        // Save the suite name (Feature) if found
+        if (currentFeature) {
+            testBodies.set('suiteName', {
+                content: currentFeature,
+                type: 'cucumber'
+            });
         }
     }
+
 
     private parseMochaFile(lines: string[], testBodies: Map<string, TestBody>): void {
         for (let i = 0; i < lines.length; i++) {
@@ -116,24 +141,5 @@ export class TestBodyCache {
                 });
             }
         }
-    }
-
-    private saveScenario(
-        lines: string[],
-        start: number,
-        end: number,
-        title: string,
-        testBodies: Map<string, TestBody>
-    ): void {
-        const content = lines
-            .slice(start, end + 1)
-            .map(line => line.trim())
-            .filter(line => line)
-            .join('\n');
-
-        testBodies.set(title, {
-            content,
-            type: 'cucumber'
-        });
     }
 }

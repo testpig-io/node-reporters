@@ -1,6 +1,5 @@
 import {TestStatus, MessageData, TestRunDetails, TestSuiteDetails, getGitInfo} from '@testpig/shared';
 import {v4 as uuidv4} from 'uuid';
-import {execSync} from 'child_process';
 
 export interface SystemInfo {
     os: string;
@@ -130,6 +129,9 @@ export class TestEventNormalizer {
                       }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        const stripAnsi = (str: string): string => {
+            return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+        };
 
         return new MessageData('fail', {
             projectId: this.projectId,
@@ -140,8 +142,8 @@ export class TestEventNormalizer {
                 title: this.testRunTitle
             },
             title,
-            error,
-            stack,
+            error: stripAnsi(error),
+            stack: stripAnsi(stack),
             status: TestStatus.FAILED,
             endTime: new Date()
         });

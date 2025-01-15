@@ -85,12 +85,9 @@ class JestReporter implements Reporter {
                 this.eventHandler.queueEvent('pass', passData);
             } else if (result.status === 'failed') {
                 this.failureCount++;
-                const stripAnsi = (str: string): string => {
-                    return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
-                };
                 // @ts-expect-error - matcherResult is not defined in the type
-                const errorMessage = stripAnsi(result.failureDetails?.[0]?.matcherResult?.message || result.failureMessages.join('\n'));
-                const stackTrace = stripAnsi(result.failureMessages.join('\n'));
+                const errorMessage = result.failureDetails?.[0]?.matcherResult?.message || result.failureMessages.join('\n');
+                const stackTrace = result.failureMessages.join('\n');
 
                 const failData = this.eventHandler.eventNormalizer.normalizeTestFail({
                     testId,
