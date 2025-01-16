@@ -17,11 +17,6 @@ interface ScenarioInfo {
     stack?: string;
 }
 
-interface TestCaseMap {
-    gherkinDocument: any;
-    pickle: any;
-}
-
 export default class CucumberReporter extends Formatter {
     private eventHandler: TestEventHandler;
     private failureCount: number = 0;
@@ -29,7 +24,6 @@ export default class CucumberReporter extends Formatter {
     private currentScenario: ScenarioInfo | null = null;
     private finishPromise: Promise<void>;
     private resolveFinish!: () => void;
-    private testCaseMap = new Map<string, TestCaseMap>();
 
     constructor(options: IFormatterOptions) {
         super(options);
@@ -44,8 +38,6 @@ export default class CucumberReporter extends Formatter {
             formatterOptions.runId
         );
 
-        console.log("EVENT HANDLER: ", this.eventHandler);
-
         // Initialize finish promise
         this.finishPromise = new Promise((resolve) => {
             this.resolveFinish = resolve;
@@ -56,20 +48,28 @@ export default class CucumberReporter extends Formatter {
     }
 
     private processEnvelope(envelope: any): void {
-        // console.log("PROCESS ENVELOPE: ", envelope);
-        // Store gherkin document and pickle information
-        if (envelope.gherkinDocument) {
-            this.processGherkinDocument(envelope.gherkinDocument);
-        }
-        if (envelope.pickle) {
-            this.processPickle(envelope.pickle);
+        console.log("PROCESS ENVELOPE TYPE:", envelope.gherkinDocument ? 'gherkinDocument' :
+            envelope.pickle ? 'pickle' :
+                envelope.testRunStarted ? 'testRunStarted' :
+                    envelope.testCaseStarted ? 'testCaseStarted' :
+                        envelope.testStepStarted ? 'testStepStarted' :
+                            envelope.testStepFinished ? 'testStepFinished' :
+                                envelope.testCaseFinished ? 'testCaseFinished' :
+                                    envelope.testRunFinished ? 'testRunFinished' : 'unknown');
+
+        // Handle Feature (Suite) start
+        if (envelope.gherkinDocument?.feature) {
+            this.handleFeatureStart(envelope.gherkinDocument);
         }
 
-        // Process test events
+        // Handle Scenario (Test) start
+        if (envelope.pickle) {
+            this.handleScenarioStart(envelope.pickle);
+        }
+
+        // Handle test run events
         if (envelope.testRunStarted) {
             this.onTestRunStarted();
-        } else if (envelope.testCaseStarted) {
-            this.onTestCaseStarted(envelope.testCaseStarted);
         } else if (envelope.testStepStarted) {
             this.onTestStepStarted(envelope.testStepStarted);
         } else if (envelope.testStepFinished) {
@@ -81,107 +81,58 @@ export default class CucumberReporter extends Formatter {
         }
     }
 
-    private processGherkinDocument(gherkinDocument: any): void {
-        // console.log("PROCESS GHERKIN DOCUMENT: ", gherkinDocument);
-        // Store gherkin document for each scenario
-        if (gherkinDocument.feature) {
-            gherkinDocument.feature.children.forEach((child: any) => {
-                if (child.scenario) {
-                    const testCaseInfo = this.testCaseMap.get(child.scenario.id) || {};
-                    console.log("CHILD.SCENARIO: ", child.scenario);
-                    console.log("TESTCASEINFO: ", testCaseInfo);
-                    // @ts-ignore
-                    this.testCaseMap.set(child.scenario.id, {
-                        ...testCaseInfo,
-                        gherkinDocument
-                    });
-                }
-            });
-        }
-    }
-
-    private processPickle(pickle: any): void {
-        // console.log("PROCESS PICKLE: ", pickle);
-        // Store pickle for the scenario
-        const testCaseInfo = this.testCaseMap.get(pickle.astNodeIds[0]) || {};
-        console.log("PROCESSPICKLE > TESTCASEINFO: ", testCaseInfo);
-        // @ts-ignore
-        this.testCaseMap.set(pickle.astNodeIds[0], {
-            ...testCaseInfo,
-            pickle
-        });
-    }
-
-    private onTestRunStarted(): void {
-        console.log("ON TEST RUN STARTED");
-        const data = this.eventHandler.eventNormalizer.normalizeRunStart();
-        this.eventHandler.queueEvent('start', data);
-    }
-
-    private onTestCaseStarted(testCaseStarted: any): void {
-        console.log("ON TEST CASE STARTED: ", testCaseStarted);
-        const testCaseInfo = this.testCaseMap.get(testCaseStarted.id);
-
-        // get all items from testCaseMap
-        console.log("TEST CASE MAP: ", this.testCaseMap);
-        // if (!testCaseInfo) return;
-
-        // @ts-ignore
-        const {gherkinDocument, pickle} = testCaseInfo;
+    private handleFeatureStart(gherkinDocument: any): void {
         const feature = gherkinDocument.feature;
 
-        console.log("FEATURE: ", feature);
-        console.log("PICKLE: ", pickle);
-        console.log("GHK DOCUMENT: ", gherkinDocument);
-        // Handle feature/suite start if it's a new feature
-        if (!this.currentFeature || this.currentFeature.title !== feature.name) {
-            if (this.currentFeature) {
-                // End previous feature
-                const data = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
-                    this.currentFeature.id,
-                    this.currentFeature.title,
-                    false
-                );
-                this.eventHandler.queueEvent('suite end', data);
-            }
-
-            const suiteId = uuidv4();
-            this.currentFeature = {
-                id: suiteId,
-                title: feature.name,
-                file: gherkinDocument.uri,
-                testCount: feature.children.length
-            };
-
-            const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
-                suiteId,
-                feature.name,
-                gherkinDocument.uri,
-                this.currentFeature.testCount,
-                {
-                    os: process.platform,
-                    architecture: process.arch,
-                    browser: 'Node.js',
-                    framework: 'Cucumber.js',
-                    frameworkVersion: require('@cucumber/cucumber/package.json').version
-                },
-                'e2e'
+        // End previous feature if exists
+        if (this.currentFeature) {
+            const data = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
+                this.currentFeature.id,
+                this.currentFeature.title,
+                false
             );
-            this.eventHandler.queueEvent('suite', data);
+            this.eventHandler.queueEvent('suite end', data);
         }
 
-        // Start new scenario
+        const suiteId = uuidv4();
+        this.currentFeature = {
+            id: suiteId,
+            title: feature.name,
+            file: gherkinDocument.uri,
+            testCount: feature.children.length
+        };
+
+        const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
+            suiteId,
+            feature.name,
+            gherkinDocument.uri,
+            this.currentFeature.testCount,
+            {
+                os: process.platform,
+                architecture: process.arch,
+                browser: 'Node.js',
+                framework: 'Cucumber.js',
+                frameworkVersion: require('@cucumber/cucumber/package.json').version
+            },
+            'e2e'
+        );
+        this.eventHandler.queueEvent('suite', data);
+    }
+
+    private handleScenarioStart(pickle: any): void {
+        if (!this.currentFeature) return;
+
         this.currentScenario = {
             id: uuidv4(),
             title: pickle.name,
-            steps: []
+            steps: pickle.steps.map((step: any) => step.text)
         };
 
         const data = this.eventHandler.eventNormalizer.normalizeTestStart(
             this.currentScenario.id,
             pickle.name,
-            gherkinDocument.uri,
-            pickle.steps.map((step: any) => step.text).join('\n'),
+            this.currentFeature.file,
+            this.currentScenario.steps.join('\n'),
             {
                 rabbitMqId: this.currentFeature.id,
                 title: this.currentFeature.title
@@ -190,21 +141,22 @@ export default class CucumberReporter extends Formatter {
         this.eventHandler.queueEvent('test', data);
     }
 
-    private onTestStepStarted(testStepStarted: any): void {
-        console.log("ON TEST STEP STARTED: ", testStepStarted);
-        if (!this.currentScenario) return;
+    private onTestRunStarted(): void {
+        console.log("ON TEST RUN STARTED");
+        const data = this.eventHandler.eventNormalizer.normalizeRunStart();
+        this.eventHandler.queueEvent('start', data);
+    }
 
-        const {testStep} = testStepStarted;
-        if (testStep.text) {
-            this.currentScenario.steps.push(testStep.text);
-        }
+    private onTestStepStarted(testStepStarted: any): void {
+        console.log("ON TEST STEP STARTED");
+        // We already have the steps from the pickle
     }
 
     private onTestStepFinished(testStepFinished: any): void {
-        console.log("ON TEST STEP FINISHED: ", testStepFinished);
+        console.log("ON TEST STEP FINISHED");
         if (!this.currentScenario) return;
 
-        const {testStep, testStepResult} = testStepFinished;
+        const {testStepResult} = testStepFinished;
         if (testStepResult.status === 'FAILED') {
             this.currentScenario.error = testStepResult.message;
             this.currentScenario.stack = testStepResult.exception?.stack || '';
@@ -212,8 +164,7 @@ export default class CucumberReporter extends Formatter {
     }
 
     private onTestCaseFinished(testCaseFinished: any): void {
-        console.log("ON TEST CASE FINISHED: ", testCaseFinished);
-        console.log("THIS.CURRENTSCENARIO: ", this.currentScenario);
+        console.log("ON TEST CASE FINISHED");
         if (!this.currentScenario || !this.currentFeature) return;
 
         const {testCaseResult} = testCaseFinished;
@@ -257,6 +208,7 @@ export default class CucumberReporter extends Formatter {
                 false
             );
             this.eventHandler.queueEvent('suite end', data);
+            this.currentFeature = null;
         }
 
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
