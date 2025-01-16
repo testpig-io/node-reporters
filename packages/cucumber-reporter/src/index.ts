@@ -1,6 +1,7 @@
 import {Formatter, IFormatterOptions} from '@cucumber/cucumber';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
+import {TestStatus} from "@testpig/shared";
 
 interface SuiteInfo {
     id: string;
@@ -12,9 +13,12 @@ interface SuiteInfo {
 interface ScenarioInfo {
     id: string;
     title: string;
-    steps: string[];
+    steps: { title: string, status: string }[];
     error?: string;
     stack?: string;
+    status?: string;
+    startTime?: number;
+    endTime?: number;
 }
 
 export default class CucumberReporter extends Formatter {
@@ -120,12 +124,15 @@ export default class CucumberReporter extends Formatter {
     }
 
     private handleScenarioStart(pickle: any): void {
+        console.log("PICKLE ON START: ", pickle);
         if (!this.currentFeature) return;
 
         this.currentScenario = {
             id: uuidv4(),
             title: pickle.name,
-            steps: pickle.steps.map((step: any) => step.text)
+            steps: pickle.steps.map((step: any) => step.text),
+            status: TestStatus.PENDING,
+            startTime: new Date().getTime()
         };
 
         const data = this.eventHandler.eventNormalizer.normalizeTestStart(
@@ -153,22 +160,31 @@ export default class CucumberReporter extends Formatter {
     }
 
     private onTestStepFinished(testStepFinished: any): void {
-        console.log("ON TEST STEP FINISHED");
+        console.log("ON TEST STEP FINISHED", testStepFinished);
         if (!this.currentScenario) return;
 
         const {testStepResult} = testStepFinished;
         if (testStepResult.status === 'FAILED') {
             this.currentScenario.error = testStepResult.message;
             this.currentScenario.stack = testStepResult.exception?.stack || '';
+            this.currentScenario.status = TestStatus.FAILED;
         }
     }
 
     private onTestCaseFinished(testCaseFinished: any): void {
-        console.log("ON TEST CASE FINISHED");
+        console.log("TEST CASE FINISHED: ", testCaseFinished);
         if (!this.currentScenario || !this.currentFeature) return;
 
+        this.currentScenario.endTime = new Date().getTime();
+
+        // set status to pass if no status is set
+        if (!this.currentScenario.status) {
+            this.currentScenario.status = TestStatus.PASSED;
+        }
+
         const {testCaseResult} = testCaseFinished;
-        if (testCaseResult.status === 'FAILED') {
+
+        if (this.currentScenario.status === 'FAILED') {
             this.failureCount++;
             const data = this.eventHandler.eventNormalizer.normalizeTestFail({
                     testId: this.currentScenario.id,
@@ -186,7 +202,7 @@ export default class CucumberReporter extends Formatter {
             const data = this.eventHandler.eventNormalizer.normalizeTestPass({
                     testId: this.currentScenario.id,
                     title: this.currentScenario.title,
-                    duration: testCaseResult.duration?.seconds || 0,
+                    duration: this.currentScenario.startTime ? this.currentScenario.endTime - this.currentScenario.startTime : 0,
                     testSuite: {
                         rabbitMqId: this.currentFeature.id,
                         title: this.currentFeature.title
