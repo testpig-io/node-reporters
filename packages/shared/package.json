@@ -20,5 +20,6 @@
     "@types/node": "^20.8.2",
     "@types/uuid": "^9.0.4",
     "typescript": "^5.2.2"
-  }
+  },
+  "gitHead": "62d4d7fad5b7bc1f8555da4125bc608daa0bd6fe"
 }
