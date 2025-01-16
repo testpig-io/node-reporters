@@ -30,5 +30,6 @@
     "type": "git",
     "url": "https://github.com/testpig-io/node-reporters.git",
     "directory": "packages/playwright-reporter"
-  }
+  },
+  "gitHead": "bc4d5b9a24b7633acf6c024c6a15cfc01d554b0a"
 }
