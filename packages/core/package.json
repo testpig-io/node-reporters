@@ -18,5 +18,8 @@
     "@types/uuid": "^9.0.4",
     "typescript": "^5.2.2"
   },
-  "gitHead": "62d4d7fad5b7bc1f8555da4125bc608daa0bd6fe"
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "a525e9fe8870ff09caf7115d71ba4cbce47ce19c"
 }
