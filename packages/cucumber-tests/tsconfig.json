@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "es2018",
+    "module": "commonjs",
+    "types": ["node", "@cucumber/cucumber"],
+    "outDir": "./dist",
+    "rootDir": "./",
+    "esModuleInterop": true
+  },
+  "include": [
+    "features/**/*.ts"
+  ]
+}

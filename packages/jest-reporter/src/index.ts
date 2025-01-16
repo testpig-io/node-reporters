@@ -18,6 +18,7 @@ class JestReporter implements Reporter {
         }
 
         this.eventHandler = new TestEventHandler(options.projectId, options.runId);
+        console.log("EVENT HANDLERKJSDKFJDSKFJ: ", this.eventHandler);
     }
 
     onRunStart(): void {
