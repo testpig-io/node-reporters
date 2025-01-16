@@ -6,3 +6,4 @@ packages/cypress-tests/cypress/screenshots/*
 
 **/dist
 **/tsconfig.tsbuildinfo
+*.tsbuildinfo
