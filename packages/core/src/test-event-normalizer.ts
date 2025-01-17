@@ -26,14 +26,18 @@ export class TestEventNormalizer {
 
     constructor(projectId: string, runId?: string) {
         this.projectId = projectId;
-        if(!projectId) {
-            console.warn('projectId is not provided. Test results will not be sent to TestPig!');
-        }
-        if(!runId) {
-            console.log('runId is not provided. Using current git branch name as run title');
-        }
 
-        this.testRunTitle = runId || getGitInfo().branch;
+        const redColor = '\x1b[31m';
+        const resetColor = '\x1b[0m';
+
+        if (!projectId || projectId === 'undefined') {
+            console.warn(`${redColor}WARNING! "projectId" is not provided. Test results will not be sent to TestPig! Please set the projectId in your test's configuration or use the env var TESTPIG_PROJECT_ID.${resetColor}`);
+        }
+        if (!runId || runId === 'undefined') {
+            console.warn(`${redColor}WARNING! "runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.\nTo set run as an explicit value, please set the runId in your test's configuration or use the env var TESTPIG_RUN_ID${resetColor}`);
+            runId = getGitInfo().branch;
+        }
+        this.testRunTitle = runId;
     }
 
     normalizeRunStart(): MessageData {

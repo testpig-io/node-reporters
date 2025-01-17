@@ -12,15 +12,12 @@ export class TestEventHandler {
         // Otherwise fall back to projectId and/or runId if provided
         projectId = process.env.TESTPIG_PROJECT_ID ? process.env.TESTPIG_PROJECT_ID : projectId;
         runId = process.env.TESTPIG_RUN_ID ? process.env.TESTPIG_RUN_ID : runId;
+
         if (!projectId) {
             throw new Error('TESTPIG_PROJECT_ID environment variable not set.');
         }
 
-        if (!runId) {
-            throw new Error('TESTPIG_RUN_ID environment variable not set.');
-        }
-
-        if (!apiKey) {
+        if (!apiKey || apiKey === 'undefined') {
             throw new Error('TESTPIG_API_KEY environment variable not set.');
         }
 
