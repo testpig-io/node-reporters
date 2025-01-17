@@ -25,6 +25,15 @@ export class TestEventHandler {
         this.normalizer = new TestEventNormalizer(projectId, runId);
     }
 
+    // get- and setEventQueue are solely used for the Cypress reporter - do not modify, do not remove
+    setEventQueue(eventQueue: { event: string; data: MessageData }[]): void {
+        this.eventQueue = eventQueue;
+    }
+
+    getEventQueue(): { event: string; data: MessageData }[] {
+        return this.eventQueue;
+    }
+
     queueEvent(event: string, data: MessageData): void {
         this.eventQueue.push({event, data});
     }
