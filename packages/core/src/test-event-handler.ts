@@ -1,14 +1,15 @@
-import {MessageData, RabbitMQPublisher} from '@testpig/shared';
+import {MessageData, APIClient} from '@testpig/shared';
 import {TestEventNormalizer} from './test-event-normalizer';
 
 export class TestEventHandler {
-    private publisher: RabbitMQPublisher;
+    private client: APIClient;
     private eventQueue: { event: string; data: MessageData }[] = [];
     private normalizer: TestEventNormalizer;
 
-    constructor(projectId?: string, runId?: string) {
-        // if TESTPIG_PROJECT_ID env var is set, use that. Otherwise fall back to projectId if provided
-        // if TESTPIG_RUN_ID env var is set, use that. Otherwise fall back to runId if provided
+    constructor(projectId: string, runId?: string) {
+        const apiKey = process.env.TESTPIG_API_KEY;
+        // if TESTPIG_PROJECT_ID and/or TESTPIG_RUN_ID env vars are set, use that.
+        // Otherwise fall back to projectId and/or runId if provided
         projectId = process.env.TESTPIG_PROJECT_ID ? process.env.TESTPIG_PROJECT_ID : projectId;
         runId = process.env.TESTPIG_RUN_ID ? process.env.TESTPIG_RUN_ID : runId;
         if (!projectId) {
@@ -19,24 +20,26 @@ export class TestEventHandler {
             throw new Error('TESTPIG_RUN_ID environment variable not set.');
         }
 
-        if (!process.env.TESTPIG_API_KEY) {
+        if (!apiKey) {
             throw new Error('TESTPIG_API_KEY environment variable not set.');
         }
 
-        this.publisher = new RabbitMQPublisher();
+        this.client = new APIClient(apiKey);
         this.normalizer = new TestEventNormalizer(projectId, runId);
-        this.publisher.connect().catch(err => console.error('Failed to connect to RabbitMQ:', err));
     }
 
     queueEvent(event: string, data: MessageData): void {
         this.eventQueue.push({event, data});
     }
 
-    processEventQueue(): void {
+    async processEventQueue(): Promise<void> {
         while (this.eventQueue.length > 0) {
             const {event, data} = this.eventQueue.shift()!;
-            this.publisher.publishMessage(event, data);
+            await this.client.publishMessage(event, data);
         }
+
+        // Final flush to ensure any remaining messages are sent
+        await this.client.flushQueue();
     }
 
     get eventNormalizer(): TestEventNormalizer {
