@@ -132,19 +132,14 @@ class CypressReporter {
                 const eventHandler = new TestEventHandler('${this.reporterOptions.projectId}', '${this.reporterOptions.runId}');
                 eventHandler.setEventQueue(eventQueue);
                 eventHandler.processEventQueue().then(() => {
-                    process.exit(0);
                 }).catch((error) => {
                     console.error('Failed to process event queue:', error);
-                    process.exit(1);
                 });
             `], {stdio: 'inherit'});
 
             if (result.error) {
                 console.error('Failed to spawn child process:', result.error);
-                process.exit(1);
             }
-
-            process.exit(result.status);
         });
     }
 

@@ -12,7 +12,6 @@ export class APIClient {
         }
         this.apiKey = apiKey;
         this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-        console.log("BASE URL: ", this.baseUrl);
     }
 
     async publishMessage(event: string, data: MessageData): Promise<boolean> {
@@ -30,9 +29,6 @@ export class APIClient {
         if (this.messageQueue.length === 0) return true;
 
         try {
-            console.log("FULL URL: ", `${this.baseUrl}/reporter-events/batch`);
-            console.log("FULL BODY: ", JSON.stringify({ messages: this.messageQueue }));
-            console.log("HEADERS: ", { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}`, 'User-Agent': 'TestPig-Reporter/1.0' });
             const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
                 method: 'POST',
                 headers: {

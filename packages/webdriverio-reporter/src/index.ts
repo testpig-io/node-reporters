@@ -47,12 +47,10 @@ export default class WebdriverIOReporter extends WDIOReporter {
 
 
     onTestStart(test: any): void {
-        console.log("REACHED WEBDRIVERIO REPORTER > onTestStart");
         this.handler.handleTestStart(test);
     }
 
     onTestPass(test: any): void {
-        console.log("REACHED WEBDRIVERIO REPORTER > onTestPass");
         this.handler.handleTestPass(test);
     }
 
