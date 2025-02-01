@@ -43,15 +43,14 @@ export class APIClient {
 
             if (!response.ok) {
                 const error = await response.text();
-                console.error('API Error Response:', error);
-                throw new Error(`API Error: ${error || response.statusText}`);
+                throw new Error(`TestPig API Error: ${error || response.statusText}`);
             }
 
             // Clear the queue after successful send
             this.messageQueue = [];
             return true;
         } catch (error) {
-            console.error('Failed to send test results:', error);
+            console.error('Failed to send test results to TestPig:', error);
             throw error; // Re-throw to allow proper error handling upstream
         }
     }
