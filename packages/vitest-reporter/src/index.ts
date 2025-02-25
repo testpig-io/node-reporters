@@ -1,6 +1,7 @@
 import { Reporter, File, Task, TaskResult, TaskResultPack } from 'vitest';
 import { TestEventHandler } from '@testpig/core';
 import { v4 as uuidv4 } from 'uuid';
+import { TestBodyCache } from './test-body-cache';
 
 interface SuiteInfo {
   id: string;
@@ -15,6 +16,7 @@ class VitestReporter implements Reporter {
   private failureCount: number = 0;
   private suiteMap = new Map<string, string>(); // Vitest ID -> Our UUID
   private testMap = new Map<string, string>();  // Vitest ID -> Our UUID
+  private testBodyCache = new TestBodyCache();
   private ctx?: any;
 
   constructor(options: { projectId: string; runId?: string }) {
@@ -54,6 +56,11 @@ class VitestReporter implements Reporter {
       });
 
       console.log('🔍 Task:', task);
+
+      // Cache test bodies when we encounter a new file
+      if (task.file?.filepath) {
+        this.testBodyCache.cacheTestBodies(task.file.filepath);
+      }
 
       if (task.type === 'suite' && task.name !== task.file?.name) {
         // This is a describe block (not the file-level suite)
@@ -105,11 +112,15 @@ class VitestReporter implements Reporter {
           this.testMap.set(task.id, testId);
           console.log('🧪 Created test mapping:', { vitestId: task.id, testId, suiteId });
 
+          const testBody = task.file?.filepath 
+            ? this.testBodyCache.getTestBody(task.file.filepath, task.name)
+            : '';
+
           const data = this.eventHandler.eventNormalizer.normalizeTestStart(
             testId,
             task.name,
             task.file?.filepath || '',
-            '',
+            testBody,
             {
               rabbitMqId: suiteId,
               title: task.suite?.name || ''
@@ -159,6 +170,7 @@ class VitestReporter implements Reporter {
     await this.eventHandler.processEventQueue();
     this.testMap.clear();
     this.suiteMap.clear();
+    this.testBodyCache.clear();
   }
 
   private getTask(id: string): Task | undefined {
