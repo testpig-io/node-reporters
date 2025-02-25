@@ -1,0 +1,169 @@
+import { Reporter, File, Task, TaskResult, TaskResultPack } from 'vitest';
+import { TestEventHandler } from '@testpig/core';
+import { v4 as uuidv4 } from 'uuid';
+
+interface SuiteInfo {
+  id: string;
+  title: string;
+  file: string;
+  testCount: number;
+  parentId?: string;  // Track parent suite relationship
+}
+
+class VitestReporter implements Reporter {
+  private eventHandler: TestEventHandler;
+  private failureCount: number = 0;
+  private suiteMap = new Map<string, string>(); // Vitest ID -> Our UUID
+  private testMap = new Map<string, string>();  // Vitest ID -> Our UUID
+  private ctx?: any;
+
+  constructor(options: { projectId: string; runId?: string }) {
+    if (!options.projectId) {
+      throw new Error('projectId is required in reporter options');
+    }
+    this.eventHandler = new TestEventHandler(options.projectId, options.runId);
+  }
+
+  onInit(ctx?: any) {
+    this.ctx = ctx;
+    console.log('🔍 Reporter: onInit called');
+    const data = this.eventHandler.eventNormalizer.normalizeRunStart();
+    this.eventHandler.queueEvent('start', data);
+  }
+
+  onCollected() {
+    console.log('🔍 Reporter: onCollected called');
+  }
+
+  onTaskUpdate(packs: Array<TaskResultPack>) {
+    console.log('🔍 Task Update Received:', packs.length, 'updates');
+    for (const [id, result, meta] of packs) {
+      const task = this.getTask(id);
+      if (!task) {
+        console.log('❌ No task found for id:', id);
+        continue;
+      }
+
+      console.log('📝 Processing task:', {
+        id,
+        name: task.name,
+        type: task.type,
+        state: result?.state,
+        parentSuite: task.suite?.name,
+        suite: task.suite
+      });
+
+      console.log('🔍 Task:', task);
+
+      if (task.type === 'suite' && task.name !== task.file?.name) {
+        // This is a describe block (not the file-level suite)
+        if (!this.suiteMap.has(task.id)) {
+          const suiteId = uuidv4();
+          this.suiteMap.set(task.id, suiteId);
+          console.log('📦 Created suite mapping:', { vitestId: task.id, suiteId });
+
+          const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
+            suiteId,
+            task.name,
+            task.file?.filepath || '',
+            task.tasks?.length || 0,
+            {
+              os: process.platform,
+              architecture: process.arch,
+              browser: 'Node.js',
+              framework: 'Vitest',
+              frameworkVersion: require('vitest/package.json').version
+            },
+            'unit'
+          );
+          this.eventHandler.queueEvent('suite', data);
+        }
+
+        if (result?.state === 'pass' || result?.state === 'fail') {
+          const suiteId = this.suiteMap.get(task.id);
+          if (suiteId) {
+            const data = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
+              suiteId,
+              task.name,
+              result.state === 'fail'
+            );
+            this.eventHandler.queueEvent('suite end', data);
+          }
+        }
+      } else if (task.type === 'test') {
+        // Get the parent suite ID from the task's ID structure
+        const parentSuiteId = task.id.substring(0, task.id.lastIndexOf('_'));
+        const suiteId = this.suiteMap.get(parentSuiteId);
+        
+        if (!suiteId) {
+          console.log('⚠️ No suite ID found for test:', task.name, 'with parent:', parentSuiteId);
+          continue;
+        }
+
+        if (!this.testMap.has(task.id)) {
+          const testId = uuidv4();
+          this.testMap.set(task.id, testId);
+          console.log('🧪 Created test mapping:', { vitestId: task.id, testId, suiteId });
+
+          const data = this.eventHandler.eventNormalizer.normalizeTestStart(
+            testId,
+            task.name,
+            task.file?.filepath || '',
+            '',
+            {
+              rabbitMqId: suiteId,
+              title: task.suite?.name || ''
+            }
+          );
+          this.eventHandler.queueEvent('test', data);
+        }
+
+        if (result?.state === 'pass' || result?.state === 'fail') {
+          const testId = this.testMap.get(task.id);
+          if (!testId) continue;
+
+          if (result.state === 'pass') {
+            const data = this.eventHandler.eventNormalizer.normalizeTestPass({
+              testId,
+              title: task.name,
+              duration: result.duration || 0,
+              testSuite: {
+                rabbitMqId: suiteId,
+                title: task.suite?.name || ''
+              }
+            });
+            this.eventHandler.queueEvent('pass', data);
+          } else {
+            this.failureCount++;
+            const data = this.eventHandler.eventNormalizer.normalizeTestFail({
+              testId,
+              title: task.name,
+              error: result.errors?.[0]?.message || 'Test failed',
+              stack: result.errors?.[0]?.stack || '',
+              testSuite: {
+                rabbitMqId: suiteId,
+                title: task.suite?.name || ''
+              }
+            });
+            this.eventHandler.queueEvent('fail', data);
+          }
+        }
+      }
+    }
+  }
+
+  async onFinished() {
+    console.log('🔍 Reporter: onFinished called');
+    const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
+    this.eventHandler.queueEvent('end', data);
+    await this.eventHandler.processEventQueue();
+    this.testMap.clear();
+    this.suiteMap.clear();
+  }
+
+  private getTask(id: string): Task | undefined {
+    return this.ctx?.state?.idMap?.get(id);
+  }
+}
+
+export default VitestReporter;
