@@ -28,34 +28,19 @@ class VitestReporter implements Reporter {
 
   onInit(ctx?: any) {
     this.ctx = ctx;
-    console.log('🔍 Reporter: onInit called');
     const data = this.eventHandler.eventNormalizer.normalizeRunStart();
     this.eventHandler.queueEvent('start', data);
   }
 
   onCollected() {
-    console.log('🔍 Reporter: onCollected called');
   }
 
   onTaskUpdate(packs: Array<TaskResultPack>) {
-    console.log('🔍 Task Update Received:', packs.length, 'updates');
     for (const [id, result, meta] of packs) {
       const task = this.getTask(id);
       if (!task) {
-        console.log('❌ No task found for id:', id);
         continue;
       }
-
-      console.log('📝 Processing task:', {
-        id,
-        name: task.name,
-        type: task.type,
-        state: result?.state,
-        parentSuite: task.suite?.name,
-        suite: task.suite
-      });
-
-      console.log('🔍 Task:', task);
 
       // Cache test bodies when we encounter a new file
       if (task.file?.filepath) {
@@ -67,8 +52,7 @@ class VitestReporter implements Reporter {
         if (!this.suiteMap.has(task.id)) {
           const suiteId = uuidv4();
           this.suiteMap.set(task.id, suiteId);
-          console.log('📦 Created suite mapping:', { vitestId: task.id, suiteId });
-
+ 
           const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
             suiteId,
             task.name,
@@ -103,15 +87,13 @@ class VitestReporter implements Reporter {
         const suiteId = this.suiteMap.get(parentSuiteId);
         
         if (!suiteId) {
-          console.log('⚠️ No suite ID found for test:', task.name, 'with parent:', parentSuiteId);
           continue;
         }
 
         if (!this.testMap.has(task.id)) {
           const testId = uuidv4();
           this.testMap.set(task.id, testId);
-          console.log('🧪 Created test mapping:', { vitestId: task.id, testId, suiteId });
-
+ 
           const testBody = task.file?.filepath 
             ? this.testBodyCache.getTestBody(task.file.filepath, task.name)
             : '';
@@ -164,7 +146,6 @@ class VitestReporter implements Reporter {
   }
 
   async onFinished() {
-    console.log('🔍 Reporter: onFinished called');
     const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
     this.eventHandler.queueEvent('end', data);
     await this.eventHandler.processEventQueue();

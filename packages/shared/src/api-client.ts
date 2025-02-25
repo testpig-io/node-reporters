@@ -11,7 +11,6 @@ export class APIClient {
             throw new Error('API key is required');
         }
         this.apiKey = apiKey;
-        console.log('API Key:', this.apiKey);
         this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     }
 
@@ -28,8 +27,6 @@ export class APIClient {
 
     async flushQueue(): Promise<boolean> {
         if (this.messageQueue.length === 0) return true;
-
-        console.log("Flushing queue", JSON.stringify(this.messageQueue));
 
         try {
             const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
