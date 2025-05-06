@@ -1,0 +1,15 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+      "target": "es2018",
+      "module": "commonjs",
+      "types": ["node", "vitest"],
+      "outDir": "./dist",
+      "rootDir": "./",
+      "esModuleInterop": true
+    },
+    "include": [
+      "test/**/*.ts",
+      "vitest.config.ts"
+    ]
+  }

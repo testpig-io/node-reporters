@@ -8,7 +8,7 @@
     "build": "npm run build:shared && npm run build:core && npm run build:reporters",
     "build:shared": "cd packages/shared && npm run build",
     "build:core": "cd packages/core && npm run build",
-    "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build && cd ../jest-reporter && npm run build && cd ../playwright-reporter && npm run build && cd ../webdriverio-reporter && npm run build",
+    "build:reporters": "cd packages/cypress-reporter && npm run build && cd ../mocha-reporter && npm run build && cd ../jest-reporter && npm run build && cd ../playwright-reporter && npm run build && cd ../webdriverio-reporter && npm run build && cd ../vitest-reporter && npm run build",
     "publish": "npx lerna publish --no-private",
     "test": "npx lerna run test",
     "test:cypress": "cd packages/cypress-tests && npx cypress run",
@@ -16,6 +16,7 @@
     "test:jest": "cd packages/jest-tests && npm test",
     "test:playwright": "cd packages/playwright-tests && npm test",
     "test:webdriverio": "cd packages/webdriverio-tests && npm test",
+    "test:vitest": "cd packages/vitest-tests && npm test",
     "lint": "lerna run lint",
     "clean": "lerna clean"
   },
