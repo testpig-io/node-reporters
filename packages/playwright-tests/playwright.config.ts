@@ -9,8 +9,6 @@ export default defineConfig({
     reporter: [
         ['list'],
         ['../playwright-reporter/dist/index.js', {
-            projectId: process.env.TESTPIG_PROJECT_ID,
-            runId: process.env.TESTPIG_RUN_ID,
         }]
     ],
     use: {

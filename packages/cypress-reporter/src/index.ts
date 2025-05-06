@@ -14,13 +14,14 @@ class CypressReporter {
     private reporterOptions;
 
     constructor(runner: any, options: { reporterOptions?: CypressReporterOptions } = {}) {
-        this.reporterOptions = options.reporterOptions || {};
-
-        if (!this.reporterOptions.projectId) {
-            throw new Error('projectId is required in reporterOptions');
+        this.reporterOptions = options?.reporterOptions || {};
+        const projectId = this.reporterOptions?.projectId || process.env.TESTPIG_PROJECT_ID;
+        const runId = this.reporterOptions?.runId || process.env.TESTPIG_RUN_ID;
+        if (!projectId) {
+            throw new Error('projectId is required in reporterOptions or set in TESTPIG_PROJECT_ID environment variable');
         }
 
-        this.eventHandler = new TestEventHandler(this.reporterOptions.projectId, this.reporterOptions.runId);
+        this.eventHandler = new TestEventHandler(projectId, runId);
         this.setupEventHandlers(runner);
     }
 
@@ -129,7 +130,7 @@ class CypressReporter {
             const result = spawnSync('node', ['-e', `
                 const { TestEventHandler } = require('@testpig/core');
                 const eventQueue = ${eventQueue};
-                const eventHandler = new TestEventHandler('${this.reporterOptions.projectId}', '${this.reporterOptions.runId}');
+                const eventHandler = new TestEventHandler('${this.reporterOptions.projectId || process.env.TESTPIG_PROJECT_ID}', '${this.reporterOptions.runId || process.env.TESTPIG_RUN_ID}');
                 eventHandler.setEventQueue(eventQueue);
                 eventHandler.processEventQueue().then(() => {
                 }).catch((error) => {

@@ -12,8 +12,11 @@ export default class WebdriverIOReporter extends WDIOReporter {
     constructor(options: any) {
         super(options);
 
-        if (!options.projectId) {
-            throw new Error('projectId is required in reporter options');
+        const projectId = options?.projectId || process.env.TESTPIG_PROJECT_ID;
+        const runId = options?.runId || process.env.TESTPIG_RUN_ID;
+
+        if (!projectId) {
+            throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
         }
 
         this.testBodyCache = new TestBodyCache();
@@ -34,8 +37,8 @@ export default class WebdriverIOReporter extends WDIOReporter {
         if (!this.isCucumber && (suite.type === 'feature' || suite.type === 'scenario')) {
             this.isCucumber = true;
             this.handler = new CucumberHandler({
-                projectId: (this.options as any).projectId,
-                runId: (this.options as any).runId
+                projectId: (this.options as any).projectId || process.env.TESTPIG_PROJECT_ID,
+                runId: (this.options as any).runId || process.env.TESTPIG_RUN_ID
             }, this.testBodyCache);
 
             // Call handleRunStart on the new handler

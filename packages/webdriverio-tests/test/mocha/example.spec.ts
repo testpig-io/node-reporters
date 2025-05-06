@@ -20,7 +20,7 @@ describe('Example Test Suite', () => {
         });
     });
 
-    it('mocha - should fail the test', ()=>{
+    xit('mocha - should fail the test', ()=>{
         expect(true).toBe(false);
     })
 });

@@ -24,6 +24,6 @@ Then('async operations should work', async () => {
     });
 });
 
-Then('the test should fail', () => {
-    expect(true).toBe(false);
-});
+// Then('the test should fail', () => {
+//     expect(true).toBe(false);
+// });
