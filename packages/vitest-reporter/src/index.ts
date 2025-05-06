@@ -18,15 +18,29 @@ class VitestReporter implements Reporter {
   private testMap = new Map<string, string>();  // Vitest ID -> Our UUID
   private testBodyCache = new TestBodyCache();
   private ctx?: any;
+  private isRunIdSet = false;
 
   constructor(options: { projectId: string; runId?: string }) {
-    if (!options.projectId) {
+    const projectId = options.projectId || process.env.TESTPIG_PROJECT_ID;
+    const runId = options.runId || process.env.TESTPIG_RUN_ID;
+
+    if (!projectId) {
       throw new Error('projectId is required in reporter options');
     }
-    this.eventHandler = new TestEventHandler(options.projectId, options.runId);
+
+    if (!runId) {
+      this.isRunIdSet = true;
+    }
+
+    this.eventHandler = new TestEventHandler(projectId, runId);
   }
 
   onInit(ctx?: any) {
+    if (!this.isRunIdSet) {
+      // Create a console warning in orange indicating "TESPIG_RUN_ID is not set - using git branch name"
+      console.warn('\x1b[33m%s\x1b[0m', 'TESTPIG_RUN_ID is not set - using git branch name');
+    }
+    
     this.ctx = ctx;
     const data = this.eventHandler.eventNormalizer.normalizeRunStart();
     this.eventHandler.queueEvent('start', data);
