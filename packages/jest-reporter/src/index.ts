@@ -13,11 +13,14 @@ class JestReporter implements Reporter {
     private testBodyCache = new TestBodyCache();
 
     constructor(globalConfig: Config.GlobalConfig, options: { projectId?: string; runId?: string } = {}) {
-        if (!options.projectId) {
-            throw new Error('projectId is required in reporter options');
+        const projectId = options?.projectId || process.env.TESTPIG_PROJECT_ID;
+        const runId = options?.runId || process.env.TESTPIG_RUN_ID;
+
+        if (!projectId) {
+            throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
         }
 
-        this.eventHandler = new TestEventHandler(options.projectId, options.runId);
+        this.eventHandler = new TestEventHandler(projectId, runId);
     }
 
     onRunStart(): void {

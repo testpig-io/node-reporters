@@ -16,11 +16,14 @@ class PlaywrightReporter implements Reporter {
     private currentSuite: SuiteInfo | null = null;
 
     constructor(options: { projectId?: string; runId?: string } = {}) {
-        if (!options.projectId) {
+        const projectId = options.projectId || process.env.TESTPIG_PROJECT_ID;
+        const runId = options.runId || process.env.TESTPIG_RUN_ID;
+
+        if (!projectId) {
             throw new Error('projectId is required in reporter options');
         }
 
-        this.eventHandler = new TestEventHandler(options.projectId, options.runId);
+        this.eventHandler = new TestEventHandler(projectId, runId);
     }
 
     onBegin(config: FullConfig, suite: Suite): void {
@@ -59,12 +62,13 @@ class PlaywrightReporter implements Reporter {
                 {
                     os: process.platform,
                     architecture: process.arch,
-                    browser: test.parent.project()?.use.browserName || 'chromium',
+                    browser: test.parent.project()?.name || 'chromium',
                     framework: 'Playwright',
                     frameworkVersion: require('@playwright/test/package.json').version
                 },
                 'e2e'
             );
+
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, suiteData);
         }
 
@@ -120,10 +124,34 @@ class PlaywrightReporter implements Reporter {
                 }
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, data);
+        } else if (result.status === 'skipped') {
+            const data = this.eventHandler.eventNormalizer.normalizeTestSkip(
+                {
+                    testId,
+                    title: test.title,
+                    testSuite: {
+                        rabbitMqId: this.currentSuite!.id,
+                        title: this.currentSuite!.title
+                    }
+                }
+            );
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_END, data);
+        } else if (result.status === 'timedOut' || result.status === 'interrupted') {
+            const data = this.eventHandler.eventNormalizer.normalizeTestPending(
+                {
+                    testId,
+                    title: test.title,
+                    testSuite: {
+                        rabbitMqId: this.currentSuite!.id,
+                        title: this.currentSuite!.title
+                    }
+                }
+            );
+            this.eventHandler.queueEvent(TestEventsEnum.TEST_END, data);
         }
     }
 
-    onEnd(): void {
+    async onEnd(): Promise<void> {
         // End the last suite if exists
         if (this.currentSuite) {
             const suiteEndData = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
@@ -136,7 +164,12 @@ class PlaywrightReporter implements Reporter {
 
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
         this.eventHandler.queueEvent('end', data);
-        this.eventHandler.processEventQueue();
+        
+        // Wait for the queue to be processed - this is critical!
+        await this.eventHandler.processEventQueue();
+        
+        // Give network requests time to complete (500ms buffer)
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     private getSuiteTitle(test: TestCase): string {

@@ -23,24 +23,34 @@ export class TestEventNormalizer {
     private testRunMap = new Map<string, Partial<MessageData>>();
     private projectId: string;
     private testRunTitle: string;
+    private _isProjectIdSet: boolean = false;  
+    private _isRunIdSet: boolean = false;
 
     constructor(projectId: string, runId?: string) {
         this.projectId = projectId;
 
-        const redColor = '\x1b[31m';
-        const resetColor = '\x1b[0m';
+        if(projectId && projectId !== 'undefined') {
+            this._isProjectIdSet = true;
+        }
 
-        if (!projectId || projectId === 'undefined') {
-            console.warn(`${redColor}WARNING! "projectId" is not provided. Test results will not be sent to TestPig! Please set the projectId in your test's configuration or use the env var TESTPIG_PROJECT_ID.${resetColor}`);
+        if(runId && runId !== 'undefined') {
+            this._isRunIdSet = true;
         }
-        if (!runId || runId === 'undefined') {
-            console.warn(`${redColor}WARNING! "runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.\nTo set run as an explicit value, please set the runId in your test's configuration or use the env var TESTPIG_RUN_ID${resetColor}`);
-            runId = getGitInfo().branch;
-        }
-        this.testRunTitle = runId;
+
+        this.testRunTitle = runId || getGitInfo().branch;
     }
 
     normalizeRunStart(): MessageData {
+        const redColor = '\x1b[31m';
+        const resetColor = '\x1b[0m';
+
+        if (!this._isProjectIdSet) {
+            console.warn(`${redColor}WARNING! "projectId" is not provided. Test results will not be sent to TestPig! Please set the projectId in your test's configuration or use the env var TESTPIG_PROJECT_ID.${resetColor}`);
+        }
+        if (!this._isRunIdSet) {
+            console.warn(`${redColor}WARNING! "runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.\nTo set run as an explicit value, please set the runId in your test's configuration or use the env var TESTPIG_RUN_ID${resetColor}`);
+        }
+
         let existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
         if (!existingTestRun) {
             const rabbitMqId = uuidv4();
@@ -124,6 +134,44 @@ export class TestEventNormalizer {
             title,
             status: TestStatus.PASSED,
             duration,
+            endTime: new Date()
+        });
+    }
+
+    normalizeTestPending({
+        testId,
+        title,
+        testSuite
+    }: {
+        testId: string,
+        title: string,
+        testSuite: TestSuiteDetails
+    }): MessageData {   
+        return new MessageData(TestEventsEnum.TEST_END, {
+            projectId: this.projectId,
+            rabbitMqId: testId,
+            testSuite,
+            title,
+            status: TestStatus.PENDING,
+            endTime: new Date()
+        });
+    }
+
+    normalizeTestSkip({
+        testId,
+        title,
+        testSuite
+    }: {
+        testId: string,
+        title: string,
+        testSuite: TestSuiteDetails
+    }): MessageData {
+        return new MessageData(TestEventsEnum.TEST_END, {
+            projectId: this.projectId,
+            rabbitMqId: testId,
+            testSuite,
+            title,
+            status: TestStatus.SKIPPED,
             endTime: new Date()
         });
     }

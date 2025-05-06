@@ -10,10 +10,11 @@ class MochaReporter extends Mocha.reporters.Spec {
     constructor(runner: Mocha.Runner, options: Mocha.MochaOptions) {
         super(runner, options);
 
-        const {projectId, runId} = options.reporterOptions;
+        const projectId = options?.reporterOptions?.projectId || process.env.TESTPIG_PROJECT_ID;
+        const runId = options?.reporterOptions?.runId || process.env.TESTPIG_RUN_ID;
 
         if (!projectId) {
-            throw new Error('projectId is required in reporterOptions');
+            throw new Error('projectId is required in reporterOptions or set in TESTPIG_PROJECT_ID environment variable');
         }
 
         this.eventHandler = new TestEventHandler(projectId, runId);

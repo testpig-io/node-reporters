@@ -20,7 +20,7 @@ describe('Example Test Suite', () => {
         });
     });
 
-    it('jasmine - should fail the test', () => {
+    xit('jasmine - should fail the test', () => {
         expect(true).toBeFalsy();
     });
 });
