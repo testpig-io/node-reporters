@@ -24,7 +24,7 @@ class VitestReporter implements Reporter {
     const runId = options.runId || process.env.TESTPIG_RUN_ID;
 
     if (!projectId) {
-      throw new Error('projectId is required in reporter options');
+      throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
     }
     this.eventHandler = new TestEventHandler(projectId, runId);
   }
