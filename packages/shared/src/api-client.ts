@@ -16,9 +16,11 @@ export class APIClient {
 
     async publishMessage(event: string, data: MessageData): Promise<boolean> {
         this.messageQueue.push({ event, data });
+        console.log(`[APIClient] Added event '${event}' to queue (${this.messageQueue.length}/${this.batchSize})`);
 
         // If we've reached batch size, flush the queue
         if (this.messageQueue.length >= this.batchSize) {
+            console.log(`[APIClient] Batch size reached (${this.batchSize}), flushing queue...`);
             return this.flushQueue();
         }
 
@@ -28,30 +30,51 @@ export class APIClient {
     async flushQueue(): Promise<boolean> {
         if (this.messageQueue.length === 0) return true;
 
+        console.log(`[APIClient] Attempting to send ${this.messageQueue.length} messages to ${this.baseUrl}/reporter-events/batch`);
+        console.log("Messages in queue:", this.messageQueue);
         try {
-            const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'User-Agent': 'TestPig-Reporter/1.0'
-                },
-                body: JSON.stringify({
-                    messages: this.messageQueue
-                })
-            });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                console.log('[APIClient] Request timed out, aborting');
+                controller.abort();
+            }, 10000); // 10 second timeout
+            console.log("Controller Signal:", controller.signal);
+            
+            try {
+                console.log('[APIClient] Starting API request...');
+                const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.apiKey}`,
+                        'User-Agent': 'TestPig-Reporter/1.0'
+                    },
+                    body: JSON.stringify({
+                        messages: this.messageQueue
+                    }),
+                    signal: controller.signal
+                });
 
-            if (!response.ok) {
-                const error = await response.text();
-                throw new Error(`TestPig API Error: ${error || response.statusText}`);
+                console.log(`[APIClient] Response received: status=${response.status}, ok=${response.ok}`);
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(`TestPig API Error: ${error || response.statusText}`);
+                }
+
+                // Clear the queue after successful send
+                const oldQueueLength = this.messageQueue.length;
+                this.messageQueue = [];
+                console.log(`[APIClient] Queue successfully cleared (${oldQueueLength} messages sent)`);
+                return true;
+            } finally {
+                clearTimeout(timeoutId);
+                console.log('[APIClient] Request completed or timed out');
             }
-
-            // Clear the queue after successful send
-            this.messageQueue = [];
-            return true;
         } catch (error) {
-            console.error('Failed to send test results to TestPig:', error);
-            throw error; // Re-throw to allow proper error handling upstream
+            console.error('[APIClient] Failed to send test results to TestPig:', error);
+            console.log('[APIClient] Keeping messages in queue for potential retry'); 
+            return false; // Return false but don't throw to avoid crashing
         }
     }
 }

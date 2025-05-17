@@ -39,13 +39,53 @@ export class TestEventHandler {
     }
 
     async processEventQueue(): Promise<void> {
-        while (this.eventQueue.length > 0) {
-            const {event, data} = this.eventQueue.shift()!;
-            await this.client.publishMessage(event, data);
+        console.log(`[TestEventHandler] Processing event queue with ${this.eventQueue.length} events`);
+        
+        if (this.eventQueue.length === 0) {
+            console.log("[TestEventHandler] No events to process");
+            return;
         }
-
-        // Final flush to ensure any remaining messages are sent
-        await this.client.flushQueue();
+        
+        try {
+            // Process all events in the queue
+            while (this.eventQueue.length > 0) {
+                const {event, data} = this.eventQueue.shift()!;
+                await this.client.publishMessage(event, data);
+                console.log(`[TestEventHandler] Published event: ${event}`);
+            }
+            
+            // Final flush with retry mechanism
+            let flushSuccess = false;
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (!flushSuccess && retryCount < maxRetries) {
+                console.log(`[TestEventHandler] Flushing queue (attempt ${retryCount + 1}/${maxRetries})...`);
+                flushSuccess = await this.client.flushQueue();
+                
+                if (!flushSuccess) {
+                    retryCount++;
+                    if (retryCount < maxRetries) {
+                        const delay = 1000 * retryCount; // Exponential backoff
+                        console.log(`[TestEventHandler] Flush failed, retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            }
+            
+            if (flushSuccess) {
+                console.log("[TestEventHandler] Queue processing completed successfully");
+            } else {
+                console.error("[TestEventHandler] Failed to flush queue after multiple attempts");
+            }
+            
+            // Additional wait to ensure network operations complete
+            console.log("[TestEventHandler] Waiting for any pending network operations...");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log("[TestEventHandler] Wait complete");
+        } catch (error) {
+            console.error("[TestEventHandler] Error processing event queue:", error);
+        }
     }
 
     get eventNormalizer(): TestEventNormalizer {
