@@ -17,8 +17,8 @@
     "test:playwright": "cd packages/playwright-tests && npm test",
     "test:webdriverio": "cd packages/webdriverio-tests && npm test",
     "test:vitest": "cd packages/vitest-tests && npm test",
-    "lint": "lerna run lint",
-    "clean": "lerna clean"
+    "lint": "npx lerna run lint",
+    "clean": "npx lerna clean"
   },
   "devDependencies": {
     "@types/node": "^20.8.2",
