@@ -2,33 +2,41 @@ import { v4 as uuidv4 } from 'uuid';
 import { TestEventHandler } from '@testpig/core';
 import { BaseHandler, SuiteInfo, TestHandlerConfig } from './base-handler';
 import { TestBodyCache } from '../test-body-cache';
-import {TestEventsEnum} from "@testpig/shared";
+import { TestEventsEnum, createLogger } from "@testpig/shared";
 
 export class StandardHandler implements BaseHandler {
     private eventHandler: TestEventHandler;
     private failureCount: number = 0;
     private currentSuite: SuiteInfo | null = null;
     private testBodyCache: TestBodyCache;
+    private logger = createLogger('StandardHandler');
 
     constructor(config: TestHandlerConfig, testBodyCache: TestBodyCache) {
         this.eventHandler = new TestEventHandler(config.projectId, config.runId);
         this.testBodyCache = testBodyCache;
+        this.logger.info(`Initialized with projectId: ${config.projectId}, runId: ${config.runId || 'not specified'}`);
     }
 
     handleRunStart(): void {
+        this.logger.info('Standard test run starting');
         const data = this.eventHandler.eventNormalizer.normalizeRunStart();
         this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
     }
 
     handleSuiteStart(suite: any): void {
         const suiteStartNames = ['suite', 'suite:start'];
-        if (!suite.title || !suiteStartNames.some(suiteStatName => suiteStatName === suite.type)) return;
+        if (!suite.title || !suiteStartNames.some(suiteStatName => suiteStatName === suite.type)) {
+            this.logger.debug(`Ignoring suite event with type ${suite.type} or empty title`);
+            return;
+        }
 
         if (this.currentSuite) {
+            this.logger.debug(`Found existing suite ${this.currentSuite.title}, ending it before starting new suite`);
             this.handleSuiteEnd(this.currentSuite);
         }
 
         if (suite.file) {
+            this.logger.debug(`Caching test bodies for file: ${suite.file}`);
             this.testBodyCache.cacheTestBodies(suite.file);
         }
 
@@ -39,6 +47,7 @@ export class StandardHandler implements BaseHandler {
             file: suite.file || 'unknown',
             testCount: suite.tests?.length || 0
         };
+        this.logger.debug(`Suite started: ${suite.title}, ID: ${suiteId}, testCount: ${this.currentSuite.testCount}`);
 
         const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
             suiteId,
@@ -60,10 +69,14 @@ export class StandardHandler implements BaseHandler {
     }
 
     handleTestStart(test: any): void {
-        if (!this.currentSuite) return;
+        if (!this.currentSuite) {
+            this.logger.warn(`Test start event received but no current suite exists: ${test.title}`);
+            return;
+        }
 
         const testId = uuidv4();
         const testBody = test.body ? test.body : this.testBodyCache.getTestBody(test.file || this.currentSuite.file, test.title);
+        this.logger.debug(`Test started: ${test.title}, ID: ${testId}, suite: ${this.currentSuite.title}`);
 
         const data = this.eventHandler.eventNormalizer.normalizeTestStart(
             testId,
@@ -80,8 +93,12 @@ export class StandardHandler implements BaseHandler {
     }
 
     handleTestPass(test: any): void {
-        if (!this.currentSuite) return;
+        if (!this.currentSuite) {
+            this.logger.warn(`Test pass event received but no current suite exists: ${test.title}`);
+            return;
+        }
 
+        this.logger.debug(`Test passed: ${test.title}, ID: ${test.testCaseId}, duration: ${test.duration}ms`);
         const data = this.eventHandler.eventNormalizer.normalizeTestPass({
             testId: test.testCaseId,
             title: test.title,
@@ -95,9 +112,17 @@ export class StandardHandler implements BaseHandler {
     }
 
     handleTestFail(test: any): void {
-        if (!this.currentSuite) return;
+        if (!this.currentSuite) {
+            this.logger.warn(`Test fail event received but no current suite exists: ${test.title}`);
+            return;
+        }
 
         this.failureCount++;
+        this.logger.debug(`Test failed: ${test.title}, ID: ${test.testCaseId}`);
+        if (test.error?.message) {
+            this.logger.debug(`Error: ${test.error.message}`);
+        }
+        
         const data = this.eventHandler.eventNormalizer.normalizeTestFail({
             testId: test.testCaseId,
             title: test.title,
@@ -112,8 +137,12 @@ export class StandardHandler implements BaseHandler {
     }
 
     handleSuiteEnd(suite: any): void {
-        if (!this.currentSuite) return;
+        if (!this.currentSuite) {
+            this.logger.warn(`Suite end event received but no current suite exists`);
+            return;
+        }
 
+        this.logger.debug(`Suite ended: ${this.currentSuite.title}, ID: ${this.currentSuite.id}`);
         const data = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
             this.currentSuite.id,
             this.currentSuite.title,
@@ -123,13 +152,26 @@ export class StandardHandler implements BaseHandler {
         this.currentSuite = null;
     }
 
-    handleRunEnd(): void {
+    async handleRunEnd(): Promise<void> {
         if (this.currentSuite) {
+            this.logger.debug(`Closing current suite at run end: ${this.currentSuite.title}`);
             this.handleSuiteEnd(this.currentSuite);
         }
 
+        this.logger.info('Standard test run ending, preparing to send results');
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
         this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
-        this.eventHandler.processEventQueue();
+        
+        try {
+            // Process the event queue and wait for it to complete
+            await this.eventHandler.processEventQueue();
+            
+            // Add a delay to ensure network requests have time to complete
+            this.logger.info("Waiting for network requests to complete...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            this.logger.info("Network wait period complete");
+        } catch (error) {
+            this.logger.error("Error processing event queue:", error);
+        }
     }
 }

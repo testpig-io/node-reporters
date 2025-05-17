@@ -1,4 +1,4 @@
-import {TestStatus, MessageData, TestRunDetails, TestSuiteDetails, getGitInfo, TestEventsEnum} from '@testpig/shared';
+import {TestStatus, MessageData, TestRunDetails, TestSuiteDetails, getGitInfo, TestEventsEnum, createLogger} from '@testpig/shared';
 import {v4 as uuidv4} from 'uuid';
 
 export interface SystemInfo {
@@ -25,6 +25,7 @@ export class TestEventNormalizer {
     private testRunTitle: string;
     private _isProjectIdSet: boolean = false;  
     private _isRunIdSet: boolean = false;
+    private logger = createLogger('TestEventNormalizer');
 
     constructor(projectId: string, runId?: string) {
         this.projectId = projectId;
@@ -38,6 +39,7 @@ export class TestEventNormalizer {
         }
 
         this.testRunTitle = runId || getGitInfo().branch;
+        this.logger.info(`Initialized with projectId: ${projectId}, runId: ${runId || 'not specified'}, using testRunTitle: ${this.testRunTitle}`);
     }
 
     normalizeRunStart(): MessageData {
@@ -46,14 +48,17 @@ export class TestEventNormalizer {
 
         if (!this._isProjectIdSet) {
             console.warn(`${redColor}WARNING! "projectId" is not provided. Test results will not be sent to TestPig! Please set the projectId in your test's configuration or use the env var TESTPIG_PROJECT_ID.${resetColor}`);
+            this.logger.warn(`"projectId" is not provided. Test results will not be sent to TestPig!`);
         }
         if (!this._isRunIdSet) {
             console.warn(`${redColor}WARNING! "runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.\nTo set run as an explicit value, please set the runId in your test's configuration or use the env var TESTPIG_RUN_ID${resetColor}`);
+            this.logger.warn(`"runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.`);
         }
 
         let existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
         if (!existingTestRun) {
             const rabbitMqId = uuidv4();
+            this.logger.debug(`Creating new test run with ID: ${rabbitMqId}, title: ${this.testRunTitle}`);
             this.testRunMap.set(`${this.projectId}-${this.testRunTitle}`, {
                 rabbitMqId,
                 title: this.testRunTitle,
@@ -61,6 +66,8 @@ export class TestEventNormalizer {
                 projectId: this.projectId,
             });
             existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        } else {
+            this.logger.debug(`Using existing test run: ${existingTestRun.rabbitMqId}`);
         }
         return existingTestRun as MessageData;
     }
@@ -74,6 +81,7 @@ export class TestEventNormalizer {
         testType: 'e2e' | 'unit'
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        this.logger.debug(`Normalizing suite start: ${title}, ID: ${suiteId}, testCount: ${testCount}`);
 
         return new MessageData(TestEventsEnum.SUITE_START, {
             fileName,
@@ -101,6 +109,8 @@ export class TestEventNormalizer {
         testBody: string,
         testSuite: TestSuiteDetails
     ): MessageData {
+        this.logger.debug(`Normalizing test start: ${title}, ID: ${testId}, suite: ${testSuite.title}`);
+        
         return new MessageData(TestEventsEnum.TEST_START, {
             projectId: this.projectId,
             rabbitMqId: testId,
@@ -122,6 +132,7 @@ export class TestEventNormalizer {
                       }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        this.logger.debug(`Normalizing test pass: ${title}, ID: ${testId}, duration: ${duration}ms`);
 
         return new MessageData(TestEventsEnum.TEST_PASS, {
             projectId: this.projectId,
@@ -147,6 +158,8 @@ export class TestEventNormalizer {
         title: string,
         testSuite: TestSuiteDetails
     }): MessageData {   
+        this.logger.debug(`Normalizing test pending: ${title}, ID: ${testId}`);
+        
         return new MessageData(TestEventsEnum.TEST_END, {
             projectId: this.projectId,
             rabbitMqId: testId,
@@ -166,6 +179,8 @@ export class TestEventNormalizer {
         title: string,
         testSuite: TestSuiteDetails
     }): MessageData {
+        this.logger.debug(`Normalizing test skip: ${title}, ID: ${testId}`);
+        
         return new MessageData(TestEventsEnum.TEST_END, {
             projectId: this.projectId,
             rabbitMqId: testId,
@@ -191,6 +206,9 @@ export class TestEventNormalizer {
                       }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        this.logger.debug(`Normalizing test fail: ${title}, ID: ${testId}`);
+        this.logger.debug(`Error: ${error}`);
+        
         const stripAnsi = (str: string): string => {
             return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
         };
@@ -217,6 +235,7 @@ export class TestEventNormalizer {
         hasFailed: boolean
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        this.logger.debug(`Normalizing suite end: ${title}, ID: ${suiteId}, hasFailed: ${hasFailed}`);
 
         return new MessageData(TestEventsEnum.SUITE_END, {
             projectId: this.projectId,
@@ -233,6 +252,7 @@ export class TestEventNormalizer {
 
     normalizeRunEnd(hasFailed: boolean): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
+        this.logger.info(`Normalizing run end, hasFailed: ${hasFailed}`);
 
         return new MessageData(TestEventsEnum.RUN_END, {
             rabbitMqId: existingTestRun?.rabbitMqId,

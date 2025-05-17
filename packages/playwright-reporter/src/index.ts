@@ -2,7 +2,7 @@ import {Reporter, TestCase, TestResult, TestStep, TestError, FullConfig, Suite} 
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import fs from 'fs';
-import {TestEventsEnum} from "@testpig/shared";
+import {TestEventsEnum, createLogger} from "@testpig/shared";
 
 interface SuiteInfo {
     id: string;
@@ -14,19 +14,22 @@ class PlaywrightReporter implements Reporter {
     private eventHandler: TestEventHandler;
     private failureCount: number = 0;
     private currentSuite: SuiteInfo | null = null;
+    private logger = createLogger('PlaywrightReporter');
 
     constructor(options: { projectId?: string; runId?: string } = {}) {
         const projectId = options.projectId || process.env.TESTPIG_PROJECT_ID;
         const runId = options.runId || process.env.TESTPIG_RUN_ID;
 
         if (!projectId) {
-            throw new Error('projectId is required in reporter options');
+            throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
         }
 
         this.eventHandler = new TestEventHandler(projectId, runId);
+        this.logger.info(`Initialized with projectId: ${projectId}, runId: ${runId || 'not specified'}`);
     }
 
     onBegin(config: FullConfig, suite: Suite): void {
+        this.logger.info('Test run starting');
         const data = this.eventHandler.eventNormalizer.normalizeRunStart();
         this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
     }
@@ -39,6 +42,7 @@ class PlaywrightReporter implements Reporter {
         if (!this.currentSuite || this.currentSuite.file !== suitePath) {
             if (this.currentSuite) {
                 // End previous suite
+                this.logger.debug(`Suite ended: ${this.currentSuite.title}`);
                 const suiteEndData = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
                     this.currentSuite.id,
                     this.currentSuite.title,
@@ -53,6 +57,7 @@ class PlaywrightReporter implements Reporter {
                 title: suiteTitle,
                 file: suitePath
             };
+            this.logger.debug(`Suite started: ${suiteTitle}`);
 
             const suiteData = this.eventHandler.eventNormalizer.normalizeSuiteStart(
                 suiteId,
@@ -75,6 +80,7 @@ class PlaywrightReporter implements Reporter {
         // Handle test start
         const testId = uuidv4();
         const testBody = this.getTestBody(test);
+        this.logger.debug(`Test started: ${test.title}`);
 
         const testData = this.eventHandler.eventNormalizer.normalizeTestStart(
             testId,
@@ -96,6 +102,7 @@ class PlaywrightReporter implements Reporter {
         const testId = (test as any).testCaseId;
 
         if (result.status === 'passed') {
+            this.logger.debug(`Test passed: ${test.title}`);
             const data = this.eventHandler.eventNormalizer.normalizeTestPass(
                 {
                     testId,
@@ -111,6 +118,7 @@ class PlaywrightReporter implements Reporter {
         } else if (result.status === 'failed') {
             this.failureCount++;
             const error = result.error || {};
+            this.logger.debug(`Test failed: ${test.title}`, error.message);
             const data = this.eventHandler.eventNormalizer.normalizeTestFail(
                 {
                     testId,
@@ -125,6 +133,7 @@ class PlaywrightReporter implements Reporter {
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, data);
         } else if (result.status === 'skipped') {
+            this.logger.debug(`Test skipped: ${test.title}`);
             const data = this.eventHandler.eventNormalizer.normalizeTestSkip(
                 {
                     testId,
@@ -137,6 +146,7 @@ class PlaywrightReporter implements Reporter {
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_END, data);
         } else if (result.status === 'timedOut' || result.status === 'interrupted') {
+            this.logger.debug(`Test ${result.status}: ${test.title}`);
             const data = this.eventHandler.eventNormalizer.normalizeTestPending(
                 {
                     testId,
@@ -154,6 +164,7 @@ class PlaywrightReporter implements Reporter {
     async onEnd(): Promise<void> {
         // End the last suite if exists
         if (this.currentSuite) {
+            this.logger.debug(`Suite ended: ${this.currentSuite.title}`);
             const suiteEndData = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
                 this.currentSuite.id,
                 this.currentSuite.title,
@@ -165,11 +176,15 @@ class PlaywrightReporter implements Reporter {
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
         this.eventHandler.queueEvent('end', data);
         
+        this.logger.info("Finishing Playwright test run, waiting for API calls to complete...");
+        
         // Wait for the queue to be processed - this is critical!
         await this.eventHandler.processEventQueue();
         
-        // Give network requests time to complete (500ms buffer)
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Give network requests time to complete
+        this.logger.info("Waiting for network requests to complete...");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        this.logger.info("Network wait period complete, exiting normally");
     }
 
     private getSuiteTitle(test: TestCase): string {
@@ -210,7 +225,7 @@ class PlaywrightReporter implements Reporter {
 
             return lines.slice(startLine, endLine + 1).join('\n');
         } catch (error) {
-            console.error('Error reading test file:', error);
+            this.logger.error('Error reading test file:', error);
             return '';
         }
     }
