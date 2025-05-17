@@ -6,6 +6,15 @@
 // Check if debug logs are enabled
 const DEBUG_ENABLED = process.env.TESTPIG_DEBUG_LOGS === 'true';
 
+// ANSI color codes
+const COLORS = {
+  BLUE: '\x1b[34m',
+  GREEN: '\x1b[32m',
+  YELLOW: '\x1b[33m',
+  RED: '\x1b[31m',
+  RESET: '\x1b[0m'
+};
+
 // Log levels
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -37,11 +46,27 @@ export class Logger {
    * @param data - Optional data to log
    * @returns Formatted log message
    */
-  private format(level: LogLevel, message: string, data?: any): string {
+  private format(level: LogLevel, message: string): string {
     const timestamp = new Date().toISOString();
-    const prefix = `[TESTPIG][${timestamp}][${level}][${this.component}]`;
+    let color = COLORS.RESET;
     
-    return data ? `${prefix} ${message}` : `${prefix} ${message}`;
+    switch (level) {
+      case LogLevel.DEBUG:
+        color = COLORS.BLUE;
+        break;
+      case LogLevel.INFO:
+        color = COLORS.GREEN;
+        break;
+      case LogLevel.WARN:
+        color = COLORS.YELLOW;
+        break;
+      case LogLevel.ERROR:
+        color = COLORS.RED;
+        break;
+    }
+    
+    const prefix = `${color}[TESTPIG][${timestamp}][${level}][${this.component}]${COLORS.RESET}`;
+    return `${prefix} ${message}`;
   }
 
   /**
