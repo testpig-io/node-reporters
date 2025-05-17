@@ -1,13 +1,13 @@
 {
   "name": "@testpig/mocha-tests",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "test": "mocha --require ts-node/register 'test/**/*.test.ts'",
     "test:watch": "mocha -r ts-node/register --watch 'test/**/*.test.ts'"
   },
   "devDependencies": {
-    "@testpig/mocha-reporter": "1.0.0",
+    "@testpig/mocha-reporter": "^1.0.1",
     "@types/chai": "^4.3.6",
     "@types/mocha": "^10.0.2",
     "@types/node": "^20.8.2",

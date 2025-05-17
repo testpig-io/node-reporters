@@ -1,6 +1,6 @@
 {
   "name": "@testpig/vitest-reporter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TestPig reporter for Vitest",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

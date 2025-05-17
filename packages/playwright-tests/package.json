@@ -1,6 +1,6 @@
 {
   "name": "@testpig/playwright-tests",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "test": "playwright test",
@@ -8,7 +8,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
-    "@testpig/playwright-reporter": "1.0.0",
+    "@testpig/playwright-reporter": "^1.0.1",
     "@types/node": "^20.8.2",
     "typescript": "^5.2.2"
   }

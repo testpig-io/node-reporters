@@ -1,12 +1,12 @@
 {
   "name": "@testpig/jest-tests",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "test": "jest"
   },
   "devDependencies": {
-    "@testpig/jest-reporter": "1.0.0",
+    "@testpig/jest-reporter": "^1.0.1",
     "@types/jest": "^29.5.5",
     "@types/node": "^20.8.2",
     "jest": "^29.7.0",
