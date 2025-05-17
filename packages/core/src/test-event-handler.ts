@@ -1,10 +1,11 @@
-import {MessageData, APIClient} from '@testpig/shared';
+import {MessageData, APIClient, createLogger} from '@testpig/shared';
 import {TestEventNormalizer} from './test-event-normalizer';
 
 export class TestEventHandler {
     private client: APIClient;
     private eventQueue: { event: string; data: MessageData }[] = [];
     private normalizer: TestEventNormalizer;
+    private logger = createLogger('TestEventHandler');
 
     constructor(projectId: string, runId?: string) {
         const apiKey = process.env.TESTPIG_API_KEY;
@@ -23,11 +24,13 @@ export class TestEventHandler {
 
         this.client = new APIClient(apiKey);
         this.normalizer = new TestEventNormalizer(projectId, runId);
+        this.logger.info(`Initialized with projectId: ${projectId}, runId: ${runId || 'not specified'}`);
     }
 
     // get- and setEventQueue are solely used for the Cypress reporter - do not modify, do not remove
     setEventQueue(eventQueue: { event: string; data: MessageData }[]): void {
         this.eventQueue = eventQueue;
+        this.logger.debug(`Event queue set with ${eventQueue.length} events`);
     }
 
     getEventQueue(): { event: string; data: MessageData }[] {
@@ -36,13 +39,14 @@ export class TestEventHandler {
 
     queueEvent(event: string, data: MessageData): void {
         this.eventQueue.push({event, data});
+        this.logger.debug(`Event queued: ${event}`);
     }
 
     async processEventQueue(): Promise<void> {
-        console.log(`[TestEventHandler] Processing event queue with ${this.eventQueue.length} events`);
+        this.logger.info(`Processing event queue with ${this.eventQueue.length} events`);
         
         if (this.eventQueue.length === 0) {
-            console.log("[TestEventHandler] No events to process");
+            this.logger.info("No events to process");
             return;
         }
         
@@ -51,7 +55,7 @@ export class TestEventHandler {
             while (this.eventQueue.length > 0) {
                 const {event, data} = this.eventQueue.shift()!;
                 await this.client.publishMessage(event, data);
-                console.log(`[TestEventHandler] Published event: ${event}`);
+                this.logger.debug(`Published event: ${event}`);
             }
             
             // Final flush with retry mechanism
@@ -60,31 +64,31 @@ export class TestEventHandler {
             const maxRetries = 3;
             
             while (!flushSuccess && retryCount < maxRetries) {
-                console.log(`[TestEventHandler] Flushing queue (attempt ${retryCount + 1}/${maxRetries})...`);
+                this.logger.info(`Flushing queue (attempt ${retryCount + 1}/${maxRetries})...`);
                 flushSuccess = await this.client.flushQueue();
                 
                 if (!flushSuccess) {
                     retryCount++;
                     if (retryCount < maxRetries) {
                         const delay = 1000 * retryCount; // Exponential backoff
-                        console.log(`[TestEventHandler] Flush failed, retrying in ${delay}ms...`);
+                        this.logger.warn(`Flush failed, retrying in ${delay}ms...`);
                         await new Promise(resolve => setTimeout(resolve, delay));
                     }
                 }
             }
             
             if (flushSuccess) {
-                console.log("[TestEventHandler] Queue processing completed successfully");
+                this.logger.info("Queue processing completed successfully");
             } else {
-                console.error("[TestEventHandler] Failed to flush queue after multiple attempts");
+                this.logger.error("Failed to flush queue after multiple attempts");
             }
             
             // Additional wait to ensure network operations complete
-            console.log("[TestEventHandler] Waiting for any pending network operations...");
+            this.logger.debug("Waiting for any pending network operations...");
             await new Promise(resolve => setTimeout(resolve, 1000));
-            console.log("[TestEventHandler] Wait complete");
+            this.logger.debug("Wait complete");
         } catch (error) {
-            console.error("[TestEventHandler] Error processing event queue:", error);
+            this.logger.error("Error processing event queue:", error);
         }
     }
 

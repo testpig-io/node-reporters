@@ -1,10 +1,12 @@
 import { MessageData } from './types';
+import { createLogger } from './logger';
 
 export class APIClient {
     private readonly baseUrl: string;
     private readonly apiKey: string;
     private readonly batchSize: number = 100;
     private messageQueue: { event: string; data: MessageData }[] = [];
+    private logger = createLogger('APIClient');
 
     constructor(apiKey: string, baseUrl: string = process.env.TESTPIG_API_URL || 'http://localhost:3000') {
         if (!apiKey) {
@@ -12,15 +14,16 @@ export class APIClient {
         }
         this.apiKey = apiKey;
         this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+        this.logger.info(`Initialized with baseUrl: ${this.baseUrl}`);
     }
 
     async publishMessage(event: string, data: MessageData): Promise<boolean> {
         this.messageQueue.push({ event, data });
-        console.log(`[APIClient] Added event '${event}' to queue (${this.messageQueue.length}/${this.batchSize})`);
+        this.logger.debug(`Added event '${event}' to queue (${this.messageQueue.length}/${this.batchSize})`);
 
         // If we've reached batch size, flush the queue
         if (this.messageQueue.length >= this.batchSize) {
-            console.log(`[APIClient] Batch size reached (${this.batchSize}), flushing queue...`);
+            this.logger.info(`Batch size reached (${this.batchSize}), flushing queue...`);
             return this.flushQueue();
         }
 
@@ -30,18 +33,19 @@ export class APIClient {
     async flushQueue(): Promise<boolean> {
         if (this.messageQueue.length === 0) return true;
 
-        console.log(`[APIClient] Attempting to send ${this.messageQueue.length} messages to ${this.baseUrl}/reporter-events/batch`);
-        console.log("Messages in queue:", this.messageQueue);
+        this.logger.info(`Attempting to send ${this.messageQueue.length} messages to ${this.baseUrl}/reporter-events/batch`);
+        this.logger.debug("Messages in queue:", this.messageQueue);
+        
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
-                console.log('[APIClient] Request timed out, aborting');
+                this.logger.warn('Request timed out, aborting');
                 controller.abort();
             }, 10000); // 10 second timeout
-            console.log("Controller Signal:", controller.signal);
+            this.logger.debug("Controller Signal:", controller.signal);
             
             try {
-                console.log('[APIClient] Starting API request...');
+                this.logger.debug('Starting API request...');
                 const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
                     method: 'POST',
                     headers: {
@@ -55,7 +59,7 @@ export class APIClient {
                     signal: controller.signal
                 });
 
-                console.log(`[APIClient] Response received: status=${response.status}, ok=${response.ok}`);
+                this.logger.info(`Response received: status=${response.status}, ok=${response.ok}`);
 
                 if (!response.ok) {
                     const error = await response.text();
@@ -65,15 +69,15 @@ export class APIClient {
                 // Clear the queue after successful send
                 const oldQueueLength = this.messageQueue.length;
                 this.messageQueue = [];
-                console.log(`[APIClient] Queue successfully cleared (${oldQueueLength} messages sent)`);
+                this.logger.info(`Queue successfully cleared (${oldQueueLength} messages sent)`);
                 return true;
             } finally {
                 clearTimeout(timeoutId);
-                console.log('[APIClient] Request completed or timed out');
+                this.logger.debug('Request completed or timed out');
             }
         } catch (error) {
-            console.error('[APIClient] Failed to send test results to TestPig:', error);
-            console.log('[APIClient] Keeping messages in queue for potential retry'); 
+            this.logger.error('Failed to send test results to TestPig:', error);
+            this.logger.warn('Keeping messages in queue for potential retry');
             return false; // Return false but don't throw to avoid crashing
         }
     }
