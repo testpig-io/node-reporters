@@ -112,7 +112,7 @@ class JestReporter implements Reporter {
                 });
                 this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, failData);
             } else if (result.status === 'pending') {
-                const pendingData = this.eventHandler.eventNormalizer.normalizeTestPending({
+                const pendingData = this.eventHandler.eventNormalizer.normalizeTestSkip({
                     testId,
                     title: result.title,
                     testSuite: {
