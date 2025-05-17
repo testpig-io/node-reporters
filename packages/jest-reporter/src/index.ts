@@ -104,6 +104,17 @@ class JestReporter implements Reporter {
                     }
                 });
                 this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, failData);
+            } else if (result.status === 'pending') {
+                const pendingData = this.eventHandler.eventNormalizer.normalizeTestPending({
+                    testId,
+                    title: result.title,
+                    testSuite: {
+                        rabbitMqId: suite.id,
+                        title: suite.title
+                    }
+                });
+
+                this.eventHandler.queueEvent(TestEventsEnum.TEST_END, pendingData);
             }
         });
 
@@ -117,19 +128,26 @@ class JestReporter implements Reporter {
         this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
     }
 
-    onRunComplete(): void {
+    async onRunComplete(): Promise<void> {
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
         this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
-        this.eventHandler.processEventQueue();
-
+        
+        try {
+            // Process the event queue and wait for it to complete
+            await this.eventHandler.processEventQueue();
+            
+            // Add a longer delay to ensure network requests have time to complete
+            // This is critical for preventing process termination before requests finish
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (error) {
+            console.error("Error processing event queue:", error);
+        }
+        
         // Clear the cache
         this.testBodyCache.clear();
-
-        // Exit with appropriate code after a short delay to allow event queue processing
-        setTimeout(() => {
-            process.exit(this.failureCount > 0 ? 1 : 0);
-        }, 100);
-
+        
+        // Set the exit code instead of calling process.exit directly
+        process.exitCode = this.failureCount > 0 ? 1 : 0;
     }
 
     private getSuiteTitle(test: Test): string {

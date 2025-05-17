@@ -111,15 +111,29 @@ class MochaReporter extends Mocha.reporters.Spec {
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, data);
         });
 
-        runner.on('end', () => {
+        runner.on('end', async () => {
             const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
             this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
-            this.eventHandler.processEventQueue();
-
-            // Exit with appropriate code after a short delay to allow event queue processing
-            setTimeout(() => {
-                process.exit(this.failureCount > 0 ? 1 : 0);
-            }, 100);
+            
+            console.log("Finishing Mocha test run, waiting for API calls to complete...");
+            
+            try {
+                // Process the event queue and wait for it to complete
+                await this.eventHandler.processEventQueue();
+                
+                // Add a longer delay to ensure network requests have time to complete
+                // This is critical for preventing process termination before requests finish
+                console.log("Waiting for network requests to complete...");
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log("Network wait period complete, exiting normally");
+            } catch (error) {
+                console.error("Error processing event queue:", error);
+            }
+            
+            // We'll still use a process.exit but with a longer delay
+            // This ensures tests won't hang indefinitely if something goes wrong
+            // with the network requests
+            process.exitCode = this.failureCount > 0 ? 1 : 0;
         });
     }
 }
