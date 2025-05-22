@@ -8,11 +8,17 @@ interface TestBodyInfo {
     title: string;
 }
 
+interface TestPathInfo {
+    title: string;
+    parent?: string;
+}
+
 export class TestBodyCache {
     private fileCache = new Map<string, {
         content: string;
         ast: any;
         bodies: Map<string, string>;
+        describeMap: Map<string, string>; // Map of test title to parent describe title
     }>();
 
     getTestBody(filePath: string, testTitle: string): string {
@@ -31,7 +37,8 @@ export class TestBodyCache {
                 fileInfo = {
                     content,
                     ast,
-                    bodies: new Map()
+                    bodies: new Map(),
+                    describeMap: new Map()
                 };
 
                 // Parse all test bodies in the file
@@ -47,6 +54,23 @@ export class TestBodyCache {
                                 const title = titleNode.value;
                                 const body = fileInfo!.content.slice(bodyNode.start!, bodyNode.end!);
                                 fileInfo!.bodies.set(title, body);
+                                
+                                // Find parent describe block
+                                let parent = path.findParent(p => {
+                                    if (!p.isCallExpression()) return false;
+                                    const calleeNode = p.node.callee;
+                                    return (
+                                        calleeNode.type === 'Identifier' && 
+                                        calleeNode.name === 'describe'
+                                    );
+                                });
+                                
+                                if (parent && parent.node.type === 'CallExpression') {
+                                    const describeArgs = parent.node.arguments;
+                                    if (describeArgs[0]?.type === 'StringLiteral') {
+                                        fileInfo!.describeMap.set(title, describeArgs[0].value);
+                                    }
+                                }
                             }
                         }
                     }
@@ -60,6 +84,22 @@ export class TestBodyCache {
         }
 
         return fileInfo.bodies.get(testTitle) || '';
+    }
+
+    getDescribeTitle(filePath: string, testTitle: string): string {
+        let fileInfo = this.fileCache.get(filePath);
+        
+        // If file is not cached, call getTestBody to populate the cache
+        if (!fileInfo) {
+            this.getTestBody(filePath, testTitle);
+            fileInfo = this.fileCache.get(filePath);
+        }
+        
+        if (fileInfo && fileInfo.describeMap) {
+            return fileInfo.describeMap.get(testTitle) || '';
+        }
+        
+        return '';
     }
 
     clear(): void {
