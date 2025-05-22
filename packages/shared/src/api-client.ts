@@ -8,7 +8,7 @@ export class APIClient {
     private messageQueue: { event: string; data: MessageData }[] = [];
     private logger = createLogger('APIClient');
 
-    constructor(apiKey: string, baseUrl: string = process.env.TESTPIG_API_URL || 'http://localhost:3000') {
+    constructor(apiKey: string, baseUrl: string = process.env.TESTPIG_API_URL || 'https://app.testpig.io/api') {
         if (!apiKey) {
             throw new Error('API key is required');
         }
