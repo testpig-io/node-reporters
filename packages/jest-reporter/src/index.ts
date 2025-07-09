@@ -1,10 +1,9 @@
-import {Reporter, ReporterOnStartOptions, Test, TestContext, TestResult} from '@jest/reporters';
-import {AggregatedResult} from '@jest/test-result';
+import {Reporter, Test, TestResult} from '@jest/reporters';
 import {Config} from '@jest/types';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import {TestBodyCache} from './test-body-cache';
-import {TestEventsEnum, createLogger} from "@testpig/shared";
+import {TestEventsEnum, createLogger, getSystemInfo} from "@testpig/shared";
 
 class JestReporter implements Reporter {
     private eventHandler: TestEventHandler;
@@ -35,7 +34,7 @@ class JestReporter implements Reporter {
         const suitePath = test.path;
         if (!this.suiteMap.has(suitePath)) {
             const suiteId = uuidv4();
-            const suiteTitle = this.getSuiteTitle(test);
+            const suiteTitle = this.getTempSuiteTitle(test);
 
             this.suiteMap.set(suitePath, {id: suiteId, title: suiteTitle});
             this.logger.debug(`Suite started: ${suiteTitle}`);
@@ -50,7 +49,9 @@ class JestReporter implements Reporter {
                     architecture: process.arch,
                     browser: 'Node.js',
                     framework: 'Jest',
-                    frameworkVersion: require('jest/package.json').version
+                    frameworkVersion: require('jest/package.json').version,
+                    nodeVersion: getSystemInfo().nodeVersion,
+                    npmVersion: getSystemInfo().npmVersion
                 },
                 'unit'
             );
@@ -59,12 +60,15 @@ class JestReporter implements Reporter {
     }
 
     onTestResult(test: Test, testResult: TestResult): void {
+        let describeTitle = '';
         const suite = this.suiteMap.get(test.path);
         if (!suite) return;
 
         testResult.testResults.forEach(result => {
             const testId = uuidv4();
             const testBody = this.testBodyCache.getTestBody(test.path, result.title);
+            describeTitle = this.testBodyCache.getDescribeTitle(test.path, result.title);
+            console.log("DESCRIBE TITLE:", describeTitle);
             this.logger.debug(`Processing test result: ${result.title}, status: ${result.status}`);
 
             // Send test start event
@@ -75,7 +79,7 @@ class JestReporter implements Reporter {
                 testBody,
                 {
                     rabbitMqId: suite.id,
-                    title: suite.title
+                    title: describeTitle
                 }
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_START, startData);
@@ -88,7 +92,7 @@ class JestReporter implements Reporter {
                         duration: result.duration || 0,
                         testSuite: {
                             rabbitMqId: suite.id,
-                            title: suite.title
+                            title: describeTitle
                         }
                     }
                 );
@@ -107,7 +111,7 @@ class JestReporter implements Reporter {
                     stack: stackTrace,
                     testSuite: {
                         rabbitMqId: suite.id,
-                        title: suite.title
+                        title: describeTitle
                     }
                 });
                 this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, failData);
@@ -117,7 +121,7 @@ class JestReporter implements Reporter {
                     title: result.title,
                     testSuite: {
                         rabbitMqId: suite.id,
-                        title: suite.title
+                        title: describeTitle
                     }
                 });
 
@@ -127,10 +131,10 @@ class JestReporter implements Reporter {
 
         // Send suite end event
         const hasFailed = testResult.testResults.some(r => r.status === 'failed');
-        this.logger.debug(`Suite ended: ${suite.title}, hasFailed: ${hasFailed}`);
+        this.logger.debug(`Suite ended: ${describeTitle}, hasFailed: ${hasFailed}`);
         const suiteEndData = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
             suite.id,
-            suite.title,
+            describeTitle,
             hasFailed
         );
         this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
@@ -162,7 +166,7 @@ class JestReporter implements Reporter {
         process.exitCode = this.failureCount > 0 ? 1 : 0;
     }
 
-    private getSuiteTitle(test: Test): string {
+    private getTempSuiteTitle(test: Test): string {
         const parts = test.path.split('/');
         return parts[parts.length - 1].replace(/\.[^/.]+$/, '');
     }

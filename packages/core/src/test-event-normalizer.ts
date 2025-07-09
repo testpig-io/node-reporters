@@ -1,13 +1,6 @@
-import {TestStatus, MessageData, TestRunDetails, TestSuiteDetails, getGitInfo, TestEventsEnum, createLogger} from '@testpig/shared';
+import {TestStatus, MessageData, TestSuiteDetails, getGitInfo, TestEventsEnum, createLogger, SystemDetails} from '@testpig/shared';
 import {v4 as uuidv4} from 'uuid';
 
-export interface SystemInfo {
-    os: string;
-    architecture: string;
-    browser: string;
-    framework: string;
-    frameworkVersion: string;
-}
 
 export enum TestEvents {
     RUN_START = 'run start',
@@ -77,7 +70,7 @@ export class TestEventNormalizer {
         title: string,
         fileName: string,
         testCount: number,
-        systemInfo: SystemInfo,
+        systemInfo: SystemDetails,
         testType: 'e2e' | 'unit'
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);

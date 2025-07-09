@@ -2,7 +2,7 @@ import {Reporter, TestCase, TestResult, TestStep, TestError, FullConfig, Suite} 
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import fs from 'fs';
-import {TestEventsEnum, createLogger} from "@testpig/shared";
+import {TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
 
 interface SuiteInfo {
     id: string;
@@ -69,7 +69,9 @@ class PlaywrightReporter implements Reporter {
                     architecture: process.arch,
                     browser: test.parent.project()?.name || 'chromium',
                     framework: 'Playwright',
-                    frameworkVersion: require('@playwright/test/package.json').version
+                    frameworkVersion: require('@playwright/test/package.json').version,
+                    nodeVersion: getSystemInfo().nodeVersion,
+                    npmVersion: getSystemInfo().npmVersion
                 },
                 'e2e'
             );

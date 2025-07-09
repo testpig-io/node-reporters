@@ -33,12 +33,14 @@ export type SystemDetails = {
     browser: string;
     framework: string;
     frameworkVersion: string;
+    nodeVersion: string;
+    npmVersion: string;
 }
 
 export type GitDetails = {
-    user: string;
-    email: string;
     branch: string;
+    commit: string;
+    author: string;
 }
 
 export interface RabbitMQConfig {

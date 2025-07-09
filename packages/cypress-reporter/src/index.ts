@@ -1,6 +1,6 @@
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
-import {TestEventsEnum, createLogger} from "@testpig/shared";
+import {TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
 import {spawnSync} from "node:child_process";
 
 interface CypressReporterOptions {
@@ -54,7 +54,9 @@ class CypressReporter {
                     architecture: process.arch,
                     browser: 'Chrome', // Default to Chrome as we can't access Cypress.browser here
                     framework: 'Cypress',
-                    frameworkVersion: require('cypress/package.json').version
+                    frameworkVersion: require('cypress/package.json').version,
+                    nodeVersion: getSystemInfo().nodeVersion,
+                    npmVersion: getSystemInfo().npmVersion
                 },
                 'e2e'
             );
