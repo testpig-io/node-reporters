@@ -1,10 +1,9 @@
-import {Reporter, ReporterOnStartOptions, Test, TestContext, TestResult} from '@jest/reporters';
-import {AggregatedResult} from '@jest/test-result';
+import {Reporter, Test, TestResult} from '@jest/reporters';
 import {Config} from '@jest/types';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import {TestBodyCache} from './test-body-cache';
-import {TestEventsEnum, createLogger} from "@testpig/shared";
+import {TestEventsEnum, createLogger, getSystemInfo} from "@testpig/shared";
 
 class JestReporter implements Reporter {
     private eventHandler: TestEventHandler;
@@ -50,7 +49,9 @@ class JestReporter implements Reporter {
                     architecture: process.arch,
                     browser: 'Node.js',
                     framework: 'Jest',
-                    frameworkVersion: require('jest/package.json').version
+                    frameworkVersion: require('jest/package.json').version,
+                    nodeVersion: getSystemInfo().nodeVersion,
+                    npmVersion: getSystemInfo().npmVersion
                 },
                 'unit'
             );

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { TestEventHandler } from '@testpig/core';
 import { BaseHandler, SuiteInfo, TestHandlerConfig } from './base-handler';
 import { TestBodyCache } from '../test-body-cache';
-import {TestEventsEnum} from "@testpig/shared";
+import {TestEventsEnum, getSystemInfo} from "@testpig/shared";
 
 interface CucumberTestInfo {
     id: string;
@@ -54,7 +54,9 @@ export class CucumberHandler implements BaseHandler {
                     // @ts-expect-error browser is not defined in the capabilities type
                     browser: (browser?.capabilities?.browserName as string) || 'unknown',
                     framework: 'WebdriverIO',
-                    frameworkVersion: require('@wdio/reporter/package.json').version
+                    frameworkVersion: require('@wdio/reporter/package.json').version,
+                    nodeVersion: getSystemInfo().nodeVersion,
+                    npmVersion: getSystemInfo().npmVersion
                 },
                 'e2e'
             );

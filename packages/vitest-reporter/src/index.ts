@@ -2,7 +2,7 @@ import { Reporter, File, Task, TaskResult, TaskResultPack } from 'vitest';
 import { TestEventHandler } from '@testpig/core';
 import { v4 as uuidv4 } from 'uuid';
 import { TestBodyCache } from './test-body-cache';
-import { createLogger, TestEventsEnum } from '@testpig/shared';
+import { createLogger, getSystemInfo, TestEventsEnum } from '@testpig/shared';
 
 interface SuiteInfo {
   id: string;
@@ -76,7 +76,9 @@ class VitestReporter implements Reporter {
               architecture: process.arch,
               browser: 'Node.js',
               framework: 'Vitest',
-              frameworkVersion: require('vitest/package.json').version
+              frameworkVersion: require('vitest/package.json').version,
+              nodeVersion: getSystemInfo().nodeVersion,
+              npmVersion: getSystemInfo().npmVersion
             },
             'unit'
           );

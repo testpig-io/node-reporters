@@ -1,7 +1,7 @@
 import * as Mocha from 'mocha';
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
-import {TestEventsEnum, createLogger} from "@testpig/shared";
+import {TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
 
 class MochaReporter extends Mocha.reporters.Spec {
     private eventHandler: TestEventHandler;
@@ -47,7 +47,9 @@ class MochaReporter extends Mocha.reporters.Spec {
                     architecture: process.arch,
                     browser: 'Node.js',
                     framework: 'Mocha',
-                    frameworkVersion: require('mocha/package.json').version
+                    frameworkVersion: require('mocha/package.json').version,
+                    nodeVersion: getSystemInfo().nodeVersion,
+                    npmVersion: getSystemInfo().npmVersion
                 },
                 'unit'
             );
