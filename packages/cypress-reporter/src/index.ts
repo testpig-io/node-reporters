@@ -86,7 +86,7 @@ class CypressReporter {
             const data = this.eventHandler.eventNormalizer.normalizeTestPass({
                     testId: test.testCaseId,
                     title: test.title,
-                    duration: test.duration,
+                    duration: Math.ceil(test.duration),
                     testSuite: {
                         rabbitMqId: test.parent?.testSuiteId,
                         title: test.parent?.title

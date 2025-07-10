@@ -89,7 +89,8 @@ class JestReporter implements Reporter {
                 const passData = this.eventHandler.eventNormalizer.normalizeTestPass({
                         testId,
                         title: result.title,
-                        duration: result.duration || 0,
+                        // The way duration is calculated in Jest is not always accurate, so we're using 1ms as a fallback
+                        duration: result.duration ? Math.ceil(result.duration) : 1,
                         testSuite: {
                             rabbitMqId: suite.id,
                             title: describeTitle

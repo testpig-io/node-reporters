@@ -138,7 +138,8 @@ class VitestReporter implements Reporter {
             const data = this.eventHandler.eventNormalizer.normalizeTestPass({
               testId,
               title: task.name,
-              duration: result.duration || 0,
+              duration: result.duration ? Math.ceil(result.duration) : undefined,
+              retries: result.retryCount,
               testSuite: {
                 rabbitMqId: suiteId,
                 title: task.suite?.name || ''
@@ -157,6 +158,7 @@ class VitestReporter implements Reporter {
               title: task.name,
               error: result.errors?.[0]?.message || 'Test failed',
               stack: result.errors?.[0]?.stack || '',
+              duration: result.duration ? Math.ceil(result.duration) : undefined,
               testSuite: {
                 rabbitMqId: suiteId,
                 title: task.suite?.name || ''

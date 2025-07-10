@@ -36,16 +36,11 @@ export class TestEventNormalizer {
     }
 
     normalizeRunStart(): MessageData {
-        const redColor = '\x1b[31m';
-        const resetColor = '\x1b[0m';
-
         if (!this._isProjectIdSet) {
-            console.warn(`${redColor}WARNING! "projectId" is not provided. Test results will not be sent to TestPig! Please set the projectId in your test's configuration or use the env var TESTPIG_PROJECT_ID.${resetColor}`);
-            this.logger.warn(`"projectId" is not provided. Test results will not be sent to TestPig!`);
+            this.logger.error(`"projectId" is not provided in the test config and TESTPIG_PROJECT_ID environment variable is not set. Test results will not be sent to TestPig!`);
         }
         if (!this._isRunIdSet) {
-            console.warn(`${redColor}WARNING! "runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.\nTo set run as an explicit value, please set the runId in your test's configuration or use the env var TESTPIG_RUN_ID${resetColor}`);
-            this.logger.warn(`"runId" is not provided. Using current git branch name "${getGitInfo().branch}" as run title.`);
+            this.logger.warn(`"runId" is not provided in the test config and TESTPIG_RUN_ID environment variable is not set. Using current git branch name "${getGitInfo().branch}" as run title.`);
         }
 
         let existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
@@ -119,7 +114,7 @@ export class TestEventNormalizer {
     normalizeTestPass({testId, title, duration, testSuite, retries}: {
                           testId: string,
                           title: string,
-                          duration: number,
+                          duration?: number,
                           testSuite: TestSuiteDetails,
                           retries?: number
                       }
@@ -138,6 +133,7 @@ export class TestEventNormalizer {
             title,
             status: TestStatus.PASSED,
             duration,
+            retries: retries?.toString(),
             endTime: new Date()
         });
     }
@@ -189,17 +185,19 @@ export class TestEventNormalizer {
                           title,
                           error,
                           stack,
-                          testSuite
+                          testSuite,
+                          duration
                       }: {
                           testId: string,
                           title: string,
                           error: string,
                           stack: string,
-                          testSuite: TestSuiteDetails
+                          testSuite: TestSuiteDetails,
+                          duration?: number
                       }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
-        this.logger.debug(`Normalizing test fail: ${title}, ID: ${testId}`);
+        this.logger.debug(`Normalizing test fail: ${title}, ID: ${testId}, duration: ${duration}ms`);
         this.logger.debug(`Error: ${error}`);
         
         const stripAnsi = (str: string): string => {
@@ -218,6 +216,7 @@ export class TestEventNormalizer {
             error: stripAnsi(error),
             stack: stripAnsi(stack),
             status: TestStatus.FAILED,
+            duration,
             endTime: new Date()
         });
     }
