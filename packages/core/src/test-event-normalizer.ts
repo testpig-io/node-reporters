@@ -119,7 +119,7 @@ export class TestEventNormalizer {
     normalizeTestPass({testId, title, duration, testSuite, retries}: {
                           testId: string,
                           title: string,
-                          duration: number,
+                          duration?: number,
                           testSuite: TestSuiteDetails,
                           retries?: number
                       }
@@ -138,6 +138,7 @@ export class TestEventNormalizer {
             title,
             status: TestStatus.PASSED,
             duration,
+            retries: retries?.toString(),
             endTime: new Date()
         });
     }
@@ -189,24 +190,26 @@ export class TestEventNormalizer {
                           title,
                           error,
                           stack,
-                          testSuite
+                          testSuite,
+                          duration
                       }: {
                           testId: string,
                           title: string,
                           error: string,
                           stack: string,
-                          testSuite: TestSuiteDetails
+                          testSuite: TestSuiteDetails,
+                          duration?: number
                       }
     ): MessageData {
         const existingTestRun = this.testRunMap.get(`${this.projectId}-${this.testRunTitle}`);
-        this.logger.debug(`Normalizing test fail: ${title}, ID: ${testId}`);
+        this.logger.debug(`Normalizing test fail: ${title}, ID: ${testId}, duration: ${duration}ms`);
         this.logger.debug(`Error: ${error}`);
         
         const stripAnsi = (str: string): string => {
             return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
         };
 
-        return new MessageData(TestEventsEnum.TEST_FAIL, {
+        return new MessageData(TestEventsEnum.TEST_END, {
             projectId: this.projectId,
             rabbitMqId: testId,
             testSuite,
@@ -218,6 +221,7 @@ export class TestEventNormalizer {
             error: stripAnsi(error),
             stack: stripAnsi(stack),
             status: TestStatus.FAILED,
+            duration,
             endTime: new Date()
         });
     }

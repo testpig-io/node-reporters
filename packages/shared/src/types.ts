@@ -74,6 +74,7 @@ export class MessageData {
     system?: SystemDetails;
     git?: GitDetails;
     apiKey?: string;
+    retries?: string;
 
     constructor(event: string, data: Partial<MessageData>) {
         Object.assign(this, data);

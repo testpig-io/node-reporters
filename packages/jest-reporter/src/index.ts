@@ -89,7 +89,7 @@ class JestReporter implements Reporter {
                 const passData = this.eventHandler.eventNormalizer.normalizeTestPass({
                         testId,
                         title: result.title,
-                        duration: result.duration || 0,
+                        duration: result.duration ? Math.ceil(result.duration) : 1,
                         testSuite: {
                             rabbitMqId: suite.id,
                             title: describeTitle

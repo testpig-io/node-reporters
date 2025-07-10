@@ -109,7 +109,8 @@ class PlaywrightReporter implements Reporter {
                 {
                     testId,
                     title: test.title,
-                    duration: result.duration,
+                    duration: result.duration ? Math.ceil(result.duration) : undefined,
+                    retries: result.retry,
                     testSuite: {
                         rabbitMqId: this.currentSuite!.id,
                         title: this.currentSuite!.title

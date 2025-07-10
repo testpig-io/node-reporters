@@ -80,7 +80,8 @@ class MochaReporter extends Mocha.reporters.Spec {
                 {
                     testId: (test as any).testCaseId,
                     title: test.title,
-                    duration: test.duration || 0,
+                    duration: test.duration ? Math.ceil(test.duration) : undefined,
+                    retries: test.retries(),
                     testSuite: {
                         rabbitMqId: (test.parent as any)?.testSuiteId,
                         title: test.parent?.title
