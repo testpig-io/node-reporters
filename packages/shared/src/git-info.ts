@@ -15,11 +15,6 @@ export function getGitInfo() {
   const author = runGitCommand('git log -1 --pretty=format:"%an (%ae)"') || 'unknown';
   const committer = runGitCommand('git log -1 --pretty=format:"%cn (%ce)"') || 'unknown';
 
-  console.log('branch', branch);
-  console.log('commit', commit);
-  console.log('author', author);
-  console.log('committer', committer);
-
   return {
     branch,
     commit,
