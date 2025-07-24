@@ -45,17 +45,100 @@ export class APIClient {
             this.logger.debug("Controller Signal:", controller.signal);
             
             try {
-                this.logger.debug('Starting API request...');
+                const formData = new FormData();
+                const mediaFiles: Array<{
+                    id: string;
+                    data: Buffer;
+                    fileName: string | undefined;
+                    mimeType: string | undefined;
+                }> = [];
+
+                // Process queue and extract media
+                const queueWithoutMedia = this.messageQueue.map(message => {
+                    if (message.data.media?.data) {
+                        const mediaData = message.data.media.data as any;  // Type assertion for checking
+                        
+                        this.logger.info('Media data found:', {
+                            hasData: !!mediaData,
+                            dataType: typeof mediaData,
+                            isBuffer: Buffer.isBuffer(mediaData),
+                            isBufferData: mediaData.type === 'Buffer',
+                            dataArray: Array.isArray(mediaData.data)
+                        });
+                        
+                        const mediaId = message.data.rabbitMqId;
+                        
+                        // Only add media if we have the required data
+                        if (mediaId && mediaData) {
+                            // Convert back to Buffer if it's been JSON serialized
+                            const buffer = mediaData.type === 'Buffer' 
+                                ? Buffer.from(mediaData.data)
+                                : mediaData;
+
+                            mediaFiles.push({
+                                id: mediaId,
+                                data: buffer,
+                                fileName: message.data.media.fileName,
+                                mimeType: message.data.media.mimeType
+                            });
+                            this.logger.info('Added media file to queue:', {
+                                id: mediaId,
+                                fileName: message.data.media.fileName,
+                                mimeType: message.data.media.mimeType,
+                                dataLength: buffer.length
+                            });
+                        }
+
+                        // Replace media data with reference
+                        return {
+                            ...message,
+                            data: {
+                                ...message.data,
+                                media: {
+                                    ...message.data.media,
+                                    mediaId,
+                                    data: undefined
+                                }
+                            }
+                        };
+                    }
+                    return message;
+                });
+
+                // Add messages JSON
+                formData.append('messages', JSON.stringify(queueWithoutMedia));
+
+                // Add media files - simplified approach
+                mediaFiles.forEach(file => {
+                    this.logger.info('Processing media file:', {
+                        id: file.id,
+                        fileName: file.fileName,
+                        mimeType: file.mimeType,
+                        dataLength: file.data.length
+                    });
+                    
+                    formData.append('media', new Blob([file.data], { 
+                        type: file.mimeType 
+                    }), file.fileName);
+                });
+
+                this.logger.info('Final FormData entries:');
+                for (const [key, value] of formData.entries()) {
+                    this.logger.info('FormData entry:', {
+                        key,
+                        value: value instanceof Blob ? 
+                            `Blob (size: ${value.size}, type: ${value.type})` : 
+                            'JSON data'
+                    });
+                }
+
                 const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': `Bearer ${this.apiKey}`,
                         'User-Agent': 'TestPig-Reporter/1.0'
                     },
-                    body: JSON.stringify({
-                        messages: this.messageQueue
-                    }),
+                    body: formData,
                     signal: controller.signal
                 });
 
@@ -63,6 +146,7 @@ export class APIClient {
 
                 if (!response.ok) {
                     const error = await response.text();
+                    this.logger.error('TestPig Failed Message:', JSON.stringify(this.messageQueue, null, 2));
                     throw new Error(`TestPig API Error: ${error || response.statusText}`);
                 }
 

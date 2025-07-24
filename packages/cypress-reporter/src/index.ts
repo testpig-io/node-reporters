@@ -1,11 +1,70 @@
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
-import {TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
+import {Logger, MediaData, TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
 import {spawnSync} from "node:child_process";
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface CypressReporterOptions {
     projectId?: string;
     runId?: string;
+}
+
+// Use a file to share config between plugin and reporter instances
+const CONFIG_FILE = path.join(process.cwd(), '.cypress-testpig-config.json');
+
+// Plugin initialization function - store config for reporter to use
+function testPigReporter(on: any, config: any) {
+    let browserConfig = { ...config };
+    
+    on('before:browser:launch', (browser: any, launchOptions: any) => {
+        browserConfig = {
+            ...browserConfig,
+            browserName: browser.name,
+            browserVersion: browser.version,
+            browserFamily: browser.family
+        };
+        
+        // Write updated config atomically
+        try {
+            fs.writeFileSync(
+                CONFIG_FILE,
+                JSON.stringify(browserConfig, null, 2),
+                { flag: 'w' }  // 'w' flag ensures atomic write
+            );
+        } catch (error) {
+            console.error('Failed to write browser config:', error);
+        }
+        
+        return launchOptions;
+    });
+
+    // Write initial config
+    try {
+        fs.writeFileSync(
+            CONFIG_FILE,
+            JSON.stringify(browserConfig, null, 2),
+            { flag: 'w' }
+        );
+    } catch (error) {
+        console.error('Failed to write initial config:', error);
+    }
+
+    return config;
+}
+
+// Helper to get config in reporter
+function getConfig(logger: Logger): any {
+    try {
+        if (fs.existsSync(CONFIG_FILE)) {
+            const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+            logger.debug('Loaded Cypress config successfully!', JSON.stringify(config, null, 2));
+            return config;
+        }
+    } catch (err) {
+        console.error('Error reading Cypress config:', err);
+    }
+    return null;
 }
 
 class CypressReporter {
@@ -13,6 +72,7 @@ class CypressReporter {
     private failureCount: number = 0;
     private reporterOptions;
     private logger = createLogger('CypressReporter');
+    private cypressConfig: any;
 
     constructor(runner: any, options: { reporterOptions?: CypressReporterOptions } = {}) {
         this.reporterOptions = options?.reporterOptions || {};
@@ -21,6 +81,10 @@ class CypressReporter {
         if (!projectId) {
             throw new Error('projectId is required in reporterOptions or set in TESTPIG_PROJECT_ID environment variable');
         }
+
+        // Load the Cypress config
+        this.cypressConfig = getConfig(this.logger);
+        this.logger.debug('Loaded Cypress config:', JSON.stringify(this.cypressConfig, null, 2));
 
         this.eventHandler = new TestEventHandler(projectId, runId);
         this.logger.info(`Initialized with projectId: ${projectId}, runId: ${runId || 'not specified'}`);
@@ -43,7 +107,11 @@ class CypressReporter {
             const suiteId = uuidv4();
             suite.testSuiteId = suiteId;
             this.logger.debug(`Suite started: ${suite.title}, ID: ${suiteId}, file: ${suite.invocationDetails?.relativeFile}`);
+            console.log("CONFIG", this.cypressConfig);
 
+            // Reload config to get latest browser info
+            this.cypressConfig = getConfig(this.logger);
+            
             const data = this.eventHandler.eventNormalizer.normalizeSuiteStart(
                 suiteId,
                 suite.title,
@@ -52,7 +120,7 @@ class CypressReporter {
                 {
                     os: process.platform,
                     architecture: process.arch,
-                    browser: 'Chrome', // Default to Chrome as we can't access Cypress.browser here
+                    browser: this.cypressConfig?.browserName,
                     framework: 'Cypress',
                     frameworkVersion: require('cypress/package.json').version,
                     nodeVersion: getSystemInfo().nodeVersion,
@@ -101,6 +169,36 @@ class CypressReporter {
             this.failureCount++;
             this.logger.debug(`Test failed: ${test.title}, ID: ${test.testCaseId}`);
             this.logger.debug(`Error: ${err.message}`);
+
+            // Are screenshots enabled?
+            const screenshotsEnabled = this.cypressConfig?.screenshotOnRunFailure;
+            this.logger.info('Screenshots enabled:', screenshotsEnabled);
+
+            let mediaData: MediaData | undefined;
+            if (screenshotsEnabled) {
+                this.logger.info('Screenshots enabled, getting screenshot path from config');
+                const screenshotsFolder = this.cypressConfig?.screenshotsFolder;
+                this.logger.info('Screenshots folder contents:', fs.readdirSync(screenshotsFolder));
+                const testFileName = path.basename(test.invocationDetails.relativeFile);
+                const screenshotFilename = `${test.parent?.title} -- ${test.title} (failed).png`;
+                const screenshotPath = path.join(screenshotsFolder, testFileName, screenshotFilename);
+                this.logger.info('Screenshot path:', screenshotPath);
+                // check if screenshot exists
+                if (!fs.existsSync(screenshotPath)) {
+                    this.logger.warn('Screenshot does not exist - check screenshotsFolder:', screenshotPath);
+                    return;
+                }
+                const screenshotData = fs.readFileSync(screenshotPath);
+                this.logger.info('Screenshot data:', screenshotData);
+                mediaData = {
+                    data: screenshotData,
+                    rabbitMqId: test.testCaseId,
+                    type: 'image',
+                    mimeType: 'image/png',
+                    fileName: screenshotFilename,
+                    timestamp: new Date().toISOString()
+                }
+            }
             
             const data = this.eventHandler.eventNormalizer.normalizeTestFail({
                     testId: test.testCaseId,
@@ -110,7 +208,8 @@ class CypressReporter {
                     testSuite: {
                         rabbitMqId: test.parent?.testSuiteId,
                         title: test.parent?.title
-                    }
+                    },
+                    media: mediaData
                 }
             );
 
@@ -138,6 +237,15 @@ class CypressReporter {
             this.logger.info('Cypress test run ending, preparing to send results');
             const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
             this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
+
+            // Clean up config file
+            try {
+                if (fs.existsSync(CONFIG_FILE)) {
+                    fs.unlinkSync(CONFIG_FILE);
+                }
+            } catch (err) {
+                this.logger.error('Error cleaning up config file:', err);
+            }
 
             // Serialize the event queue to pass to the child process
             const eventQueue = JSON.stringify(this.eventHandler.getEventQueue());
@@ -180,4 +288,6 @@ class CypressReporter {
     }
 }
 
-export = CypressReporter;
+// Export both the plugin init function and reporter class
+module.exports = CypressReporter;
+module.exports.testPigReporter = testPigReporter;

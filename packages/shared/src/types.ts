@@ -1,3 +1,5 @@
+import { MediaData } from "./media-collector";
+
 export enum TestStatus {
     FAILED = 'failed',
     PASSED = 'passed',
@@ -75,6 +77,7 @@ export class MessageData {
     git?: GitDetails;
     apiKey?: string;
     retries?: string;
+    media?: MediaData;
 
     constructor(event: string, data: Partial<MessageData>) {
         Object.assign(this, data);
