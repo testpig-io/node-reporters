@@ -4,7 +4,7 @@ test.describe('Example Test Suite', () => {
     test('basic test', async ({ page }) => {
         await page.goto('https://playwright.dev/');
         const title = await page.title();
-        expect(title).toContain('Playwright');
+        expect(title).toContain('PlaywrightSucka');
     });
 
     test('should handle assertions', async () => {

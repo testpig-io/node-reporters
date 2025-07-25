@@ -29,6 +29,13 @@ export type TestSuiteDetails = {
     title?: string;
 }
 
+export type BrowserDetails = {
+    name?: string;
+    version?: string;
+    viewPort?: string;
+    platform?: string;
+}
+
 export type SystemDetails = {
     os: string;
     architecture: string;
@@ -78,6 +85,7 @@ export class MessageData {
     apiKey?: string;
     retries?: string;
     media?: MediaData;
+    browser?: BrowserDetails;
 
     constructor(event: string, data: Partial<MessageData>) {
         Object.assign(this, data);

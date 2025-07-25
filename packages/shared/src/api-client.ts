@@ -58,7 +58,7 @@ export class APIClient {
                     if (message.data.media?.data) {
                         const mediaData = message.data.media.data as any;  // Type assertion for checking
                         
-                        this.logger.info('Media data found:', {
+                        this.logger.debug('Media data found:', {
                             hasData: !!mediaData,
                             dataType: typeof mediaData,
                             isBuffer: Buffer.isBuffer(mediaData),
@@ -81,7 +81,7 @@ export class APIClient {
                                 fileName: message.data.media.fileName,
                                 mimeType: message.data.media.mimeType
                             });
-                            this.logger.info('Added media file to queue:', {
+                            this.logger.debug('Added media file to queue:', {
                                 id: mediaId,
                                 fileName: message.data.media.fileName,
                                 mimeType: message.data.media.mimeType,
@@ -110,7 +110,7 @@ export class APIClient {
 
                 // Add media files - simplified approach
                 mediaFiles.forEach(file => {
-                    this.logger.info('Processing media file:', {
+                    this.logger.debug('Processing media file:', {
                         id: file.id,
                         fileName: file.fileName,
                         mimeType: file.mimeType,
@@ -122,9 +122,9 @@ export class APIClient {
                     }), file.fileName);
                 });
 
-                this.logger.info('Final FormData entries:');
+                this.logger.debug('Final FormData entries:');
                 for (const [key, value] of formData.entries()) {
-                    this.logger.info('FormData entry:', {
+                    this.logger.debug('FormData entry:', {
                         key,
                         value: value instanceof Blob ? 
                             `Blob (size: ${value.size}, type: ${value.type})` : 
@@ -146,7 +146,8 @@ export class APIClient {
 
                 if (!response.ok) {
                     const error = await response.text();
-                    this.logger.error('TestPig Failed Message:', JSON.stringify(this.messageQueue, null, 2));
+                    this.logger.debug('TestPig Failed Message:', JSON.stringify(this.messageQueue, null, 2));
+                    this.logger.error('TestPig Failed Message:', error);
                     throw new Error(`TestPig API Error: ${error || response.statusText}`);
                 }
 

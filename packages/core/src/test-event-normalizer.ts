@@ -7,6 +7,7 @@ import {
   createLogger,
   SystemDetails,
   MediaData,
+  BrowserDetails,
 } from "@testpig/shared";
 import { v4 as uuidv4 } from "uuid";
 
@@ -125,7 +126,8 @@ export class TestEventNormalizer {
     title: string,
     fileName: string,
     testBody: string,
-    testSuite: TestSuiteDetails
+    testSuite: TestSuiteDetails,
+    browserDetails?: BrowserDetails
   ): MessageData {
     this.logger.debug(
       `Normalizing test start: ${title}, ID: ${testId}, suite: ${testSuite.title}`
@@ -140,6 +142,7 @@ export class TestEventNormalizer {
       status: TestStatus.RUNNING,
       fileName,
       testBody,
+      browser: browserDetails,
     });
   }
 

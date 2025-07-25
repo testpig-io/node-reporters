@@ -2,7 +2,9 @@ import {Reporter, TestCase, TestResult, TestStep, TestError, FullConfig, Suite} 
 import {TestEventHandler} from '@testpig/core';
 import {v4 as uuidv4} from 'uuid';
 import fs from 'fs';
-import {TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
+import {MediaData, TestEventsEnum, createLogger, getSystemInfo } from "@testpig/shared";
+import { PlaywrightConfigManager } from './config-manager';
+import path from 'path';
 
 interface SuiteInfo {
     id: string;
@@ -11,6 +13,7 @@ interface SuiteInfo {
 }
 
 class PlaywrightReporter implements Reporter {
+    private configManager: PlaywrightConfigManager | undefined;
     private eventHandler: TestEventHandler;
     private failureCount: number = 0;
     private currentSuite: SuiteInfo | null = null;
@@ -29,6 +32,7 @@ class PlaywrightReporter implements Reporter {
     }
 
     onBegin(config: FullConfig, suite: Suite): void {
+        this.configManager = new PlaywrightConfigManager(config);
         this.logger.info('Test run starting');
         const data = this.eventHandler.eventNormalizer.normalizeRunStart();
         this.eventHandler.queueEvent(TestEventsEnum.RUN_START, data);
@@ -83,6 +87,7 @@ class PlaywrightReporter implements Reporter {
         const testId = uuidv4();
         const testBody = this.getTestBody(test);
         this.logger.debug(`Test started: ${test.title}`);
+        const browserDetails = this.configManager?.getBrowserDetails(test);
 
         const testData = this.eventHandler.eventNormalizer.normalizeTestStart(
             testId,
@@ -92,6 +97,12 @@ class PlaywrightReporter implements Reporter {
             {
                 rabbitMqId: this.currentSuite.id,
                 title: this.currentSuite.title
+            },
+            {
+                name: browserDetails?.name || undefined,
+                version: browserDetails?.version || undefined,
+                viewPort: browserDetails?.viewPort || undefined,
+                platform: browserDetails?.platform || undefined
             }
         );
         this.eventHandler.queueEvent(TestEventsEnum.TEST_START, testData);
@@ -119,6 +130,32 @@ class PlaywrightReporter implements Reporter {
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_PASS, data);
         } else if (result.status === 'failed') {
+            let mediaData: MediaData | undefined;
+            if (this.configManager?.isScreenshotEnabled(test)) {
+                // Try attachment first
+                const screenshot = result.attachments.find(a => 
+                    a.name === 'screenshot' && 
+                    a.contentType === 'image/png'
+                );
+
+                try {
+                    const screenshotPath = screenshot?.path || this.configManager.getScreenshotPath(test);
+                    
+                    if (screenshotPath && fs.existsSync(screenshotPath)) {
+                        const screenshotData = fs.readFileSync(screenshotPath);
+                        mediaData = {
+                            data: screenshotData,
+                            rabbitMqId: testId,
+                            type: 'image',
+                            mimeType: 'image/png',
+                            fileName: path.basename(screenshotPath),
+                            timestamp: new Date().toISOString()
+                        };
+                    }
+                } catch (error) {
+                    this.logger.error(`Failed to process screenshot:`, error);
+                }
+            }
             this.failureCount++;
             const error = result.error || {};
             this.logger.debug(`Test failed: ${test.title}`, error.message);
@@ -131,7 +168,8 @@ class PlaywrightReporter implements Reporter {
                     testSuite: {
                         rabbitMqId: this.currentSuite!.id,
                         title: this.currentSuite!.title
-                    }
+                    },
+                    media: mediaData
                 }
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_FAIL, data);
