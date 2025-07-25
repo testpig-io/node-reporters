@@ -107,7 +107,7 @@ class CypressReporter {
             const suiteId = uuidv4();
             suite.testSuiteId = suiteId;
             this.logger.debug(`Suite started: ${suite.title}, ID: ${suiteId}, file: ${suite.invocationDetails?.relativeFile}`);
-            console.log("CONFIG", this.cypressConfig);
+            this.logger.debug("Cypress config loaded: ", JSON.stringify(this.cypressConfig, null, 2));
 
             // Reload config to get latest browser info
             this.cypressConfig = getConfig(this.logger);
