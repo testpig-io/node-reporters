@@ -6,17 +6,25 @@ import {MediaData, TestEventsEnum, createLogger, getSystemInfo } from "@testpig/
 import { PlaywrightConfigManager } from './config-manager';
 import path from 'path';
 
+interface BrowserDetails {
+    name?: string;
+    version?: string;
+    viewPort?: string;
+    platform?: string;
+}
+
 interface SuiteInfo {
     id: string;
     title: string;
     file: string;
+    projectName: string;
 }
 
 class PlaywrightReporter implements Reporter {
     private configManager: PlaywrightConfigManager | undefined;
     private eventHandler: TestEventHandler;
     private failureCount: number = 0;
-    private currentSuite: SuiteInfo | null = null;
+    private suitesByProject: Map<string, SuiteInfo> = new Map();
     private logger = createLogger('PlaywrightReporter');
 
     constructor(options: { projectId?: string; runId?: string } = {}) {
@@ -39,39 +47,32 @@ class PlaywrightReporter implements Reporter {
     }
 
     onTestBegin(test: TestCase): void {
-        // Handle suite start if it's a new suite
+        const projectName = test.parent.project()?.name || 'unknown';
         const suitePath = test.location.file;
         const suiteTitle = this.getSuiteTitle(test);
+        const suiteKey = `${projectName}:${suitePath}`;
 
-        if (!this.currentSuite || this.currentSuite.file !== suitePath) {
-            if (this.currentSuite) {
-                // End previous suite
-                this.logger.debug(`Suite ended: ${this.currentSuite.title}`);
-                const suiteEndData = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
-                    this.currentSuite.id,
-                    this.currentSuite.title,
-                    false
-                );
-                this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
-            }
-
+        if (!this.suitesByProject.has(suiteKey)) {
             const suiteId = uuidv4();
-            this.currentSuite = {
+            const suiteInfo: SuiteInfo = {
                 id: suiteId,
                 title: suiteTitle,
-                file: suitePath
+                file: suitePath,
+                projectName
             };
-            this.logger.debug(`Suite started: ${suiteTitle}`);
+            
+            this.suitesByProject.set(suiteKey, suiteInfo);
+            this.logger.debug(`Suite started for project ${projectName}: ${suiteTitle}`);
 
             const suiteData = this.eventHandler.eventNormalizer.normalizeSuiteStart(
                 suiteId,
                 suiteTitle,
                 suitePath,
-                1, // We'll get actual count from suite
+                1,
                 {
                     os: process.platform,
                     architecture: process.arch,
-                    browser: test.parent.project()?.name || 'chromium',
+                    browser: projectName,
                     framework: 'Playwright',
                     frameworkVersion: require('@playwright/test/package.json').version,
                     nodeVersion: getSystemInfo().nodeVersion,
@@ -83,11 +84,23 @@ class PlaywrightReporter implements Reporter {
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, suiteData);
         }
 
-        // Handle test start
+        const currentSuite = this.suitesByProject.get(suiteKey);
+        if (!currentSuite) {
+            this.logger.error(`Suite not found for project ${projectName}`);
+            return;
+        }
+
         const testId = uuidv4();
         const testBody = this.getTestBody(test);
-        this.logger.debug(`Test started: ${test.title}`);
-        const browserDetails = this.configManager?.getBrowserDetails(test);
+        this.logger.debug(`Test started for project ${projectName}: ${test.title}`);
+
+        const rawBrowserDetails = this.configManager?.getBrowserDetails(test);
+        const browserDetails: BrowserDetails | undefined = rawBrowserDetails ? {
+            name: rawBrowserDetails.name,
+            version: rawBrowserDetails.version || undefined,
+            viewPort: rawBrowserDetails.viewPort,
+            platform: rawBrowserDetails.platform
+        } : undefined;
 
         const testData = this.eventHandler.eventNormalizer.normalizeTestStart(
             testId,
@@ -95,24 +108,26 @@ class PlaywrightReporter implements Reporter {
             test.location.file,
             testBody,
             {
-                rabbitMqId: this.currentSuite.id,
-                title: this.currentSuite.title
+                rabbitMqId: currentSuite.id,
+                title: currentSuite.title
             },
-            {
-                name: browserDetails?.name || undefined,
-                version: browserDetails?.version || undefined,
-                viewPort: browserDetails?.viewPort || undefined,
-                platform: browserDetails?.platform || undefined
-            }
+            browserDetails
         );
-        this.eventHandler.queueEvent(TestEventsEnum.TEST_START, testData);
 
-        // Store test ID for later use
+        this.eventHandler.queueEvent(TestEventsEnum.TEST_START, testData);
         (test as any).testCaseId = testId;
     }
 
     onTestEnd(test: TestCase, result: TestResult): void {
         const testId = (test as any).testCaseId;
+        const projectName = test.parent.project()?.name || 'unknown';
+        const suiteKey = `${projectName}:${test.location.file}`;
+        const currentSuite = this.suitesByProject.get(suiteKey);
+        
+        if (!currentSuite) {
+            this.logger.error(`Suite not found for project ${projectName}`);
+            return;
+        }
 
         if (result.status === 'passed') {
             this.logger.debug(`Test passed: ${test.title}`);
@@ -123,8 +138,8 @@ class PlaywrightReporter implements Reporter {
                     duration: result.duration ? Math.ceil(result.duration) : undefined,
                     retries: result.retry,
                     testSuite: {
-                        rabbitMqId: this.currentSuite!.id,
-                        title: this.currentSuite!.title
+                        rabbitMqId: currentSuite.id,
+                        title: currentSuite.title
                     }
                 }
             );
@@ -138,11 +153,14 @@ class PlaywrightReporter implements Reporter {
                     a.contentType === 'image/png'
                 );
 
+                this.logger.warn(`FAILED > result.attachments:`, JSON.stringify(result.attachments, null, 2));
+
                 try {
                     const screenshotPath = screenshot?.path || this.configManager.getScreenshotPath(test);
-                    
+                    this.logger.warn(`FAILED > Screenshot path FINAL: ${screenshotPath}`);
                     if (screenshotPath && fs.existsSync(screenshotPath)) {
                         const screenshotData = fs.readFileSync(screenshotPath);
+                        this.logger.warn(`FAILED > Screenshot data:`, screenshotData);
                         mediaData = {
                             data: screenshotData,
                             rabbitMqId: testId,
@@ -166,8 +184,8 @@ class PlaywrightReporter implements Reporter {
                     error: error.message || 'Test failed',
                     stack: error.stack || '',
                     testSuite: {
-                        rabbitMqId: this.currentSuite!.id,
-                        title: this.currentSuite!.title
+                        rabbitMqId: currentSuite.id,
+                        title: currentSuite.title
                     },
                     media: mediaData
                 }
@@ -180,8 +198,8 @@ class PlaywrightReporter implements Reporter {
                     testId,
                     title: test.title,
                     testSuite: {
-                        rabbitMqId: this.currentSuite!.id,
-                        title: this.currentSuite!.title
+                        rabbitMqId: currentSuite.id,
+                        title: currentSuite.title
                     }
                 }
             );
@@ -193,8 +211,8 @@ class PlaywrightReporter implements Reporter {
                     testId,
                     title: test.title,
                     testSuite: {
-                        rabbitMqId: this.currentSuite!.id,
-                        title: this.currentSuite!.title
+                        rabbitMqId: currentSuite.id,
+                        title: currentSuite.title
                     }
                 }
             );
@@ -203,26 +221,23 @@ class PlaywrightReporter implements Reporter {
     }
 
     async onEnd(): Promise<void> {
-        // End the last suite if exists
-        if (this.currentSuite) {
-            this.logger.debug(`Suite ended: ${this.currentSuite.title}`);
+        // End all suites
+        for (const [_, suite] of this.suitesByProject) {
+            this.logger.debug(`Suite ended for project ${suite.projectName}: ${suite.title}`);
             const suiteEndData = this.eventHandler.eventNormalizer.normalizeSuiteEnd(
-                this.currentSuite.id,
-                this.currentSuite.title,
+                suite.id,
+                suite.title,
                 false
             );
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_END, suiteEndData);
         }
 
         const data = this.eventHandler.eventNormalizer.normalizeRunEnd(this.failureCount > 0);
-        this.eventHandler.queueEvent('end', data);
+        this.eventHandler.queueEvent(TestEventsEnum.RUN_END, data);
         
         this.logger.info("Finishing Playwright test run, waiting for API calls to complete...");
-        
-        // Wait for the queue to be processed - this is critical!
         await this.eventHandler.processEventQueue();
         
-        // Give network requests time to complete
         this.logger.info("Waiting for network requests to complete...");
         await new Promise(resolve => setTimeout(resolve, 2000));
         this.logger.info("Network wait period complete, exiting normally");

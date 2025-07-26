@@ -74,14 +74,15 @@ export class PlaywrightConfigManager {
 
     getScreenshotPath(test: TestCase): string | undefined {
         const projectConfig = this.getProjectConfig(test);
+        this.logger.debug(`Project config:`, JSON.stringify(projectConfig, null, 2));
         if (!projectConfig) return undefined;
 
         const testFileName = test.location.file.split('/').pop()?.replace(/\.[^/.]+$/, '');
         const screenshotName = `${test.title.replace(/[^a-zA-Z0-9]/g, '_')}-failed-1.png`;
-        
+
         return path.join(
             projectConfig.outputDir,
-            `${testFileName}-snapshots`,
+            testFileName as string,
             screenshotName
         );
     }
