@@ -30,6 +30,14 @@ export class APIClient {
         return true;
     }
 
+    private sanitizeFileName(fileName: string): string {
+        return fileName
+            .replace(/\s+/g, '-')        // Replace spaces with hyphens
+            .replace(/[^a-zA-Z0-9-_.]/g, '-')  // Replace other special chars with hyphens
+            .replace(/--+/g, '-')        // Replace multiple hyphens with single hyphen
+            .replace(/^-|-$/g, '');      // Remove leading/trailing hyphens
+    }
+
     async flushQueue(): Promise<boolean> {
         if (this.messageQueue.length === 0) return true;
 
@@ -49,21 +57,23 @@ export class APIClient {
                 const processedMessages = this.messageQueue.map(message => {
                     if (message.data.media?.data) {
                         const mediaId = message.data.rabbitMqId;
+                        const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
                         this.logger.debug('Processing media for message:', {
                             messageId: mediaId,
-                            fileName: message.data.media.fileName,
+                            originalFileName: message.data.media.fileName,
+                            sanitizedFileName,
                             mimeType: message.data.media.mimeType,
                             dataSize: message.data.media.data.length
                         });
 
-                        // Add this specific message's media file to FormData
+                        // Add this specific message's media file to FormData with sanitized name
                         formData.append(
                             'media',
                             new Blob([message.data.media.data], { 
                                 type: message.data.media.mimeType 
                             }),
-                            message.data.media.fileName
+                            sanitizedFileName  // Use sanitized filename here
                         );
 
                         // Return message with media reference but without binary data
@@ -74,12 +84,12 @@ export class APIClient {
                                 media: {
                                     ...message.data.media,
                                     mediaId,
+                                    fileName: sanitizedFileName,  // Update filename in message too
                                     data: undefined
                                 }
                             }
                         };
                     }
-
                     return message;
                 });
 
