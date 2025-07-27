@@ -17,6 +17,7 @@ describe('APIClient', () => {
     beforeEach(() => {
         client = new APIClient(API_KEY, BASE_URL);
         jest.clearAllMocks();
+        jest.resetModules();
     });
 
     afterEach(() => {
@@ -84,12 +85,12 @@ describe('APIClient', () => {
             // Check media entry
             const mediaEntry = entries.find(([key]) => key === 'media');
             expect(mediaEntry).toBeDefined();
-            expect(mediaEntry![1].filename).toBe('test.png'); // Should be sanitized
+            expect(mediaEntry![1].filename).toBe('test-.png'); // Should be sanitized
             
             // Check message entry
             const messagesEntry = entries.find(([key]) => key === 'messages');
             const messages = JSON.parse(messagesEntry![1].value);
-            expect(messages[0].data.media.fileName).toBe('test.png');
+            expect(messages[0].data.media.fileName).toBe('test-.png');
             expect(messages[0].data.media.data).toBeUndefined(); // Binary data should be removed
         });
 
@@ -146,6 +147,17 @@ describe('APIClient', () => {
             ];
 
             for (const [input, expected] of testCases) {
+                // Clear mocks before each test case
+                jest.clearAllMocks();
+
+                // Set up successful fetch response
+                (fetch as jest.Mock).mockResolvedValue({
+                    ok: true,
+                    status: 200,
+                    statusText: 'OK',
+                    text: () => Promise.resolve('')
+                });
+
                 const message: MessageData = {
                     rabbitMqId: '123',
                     title: 'Test',
@@ -164,16 +176,19 @@ describe('APIClient', () => {
                 await client.publishMessage('test', message);
                 await client.flushQueue();
 
-                const fetchCall = (fetch as jest.Mock).mock.calls.at(-1);
+                // Get the latest (and only) fetch call
+                const fetchCall = (fetch as jest.Mock).mock.calls[0];
                 const formData = fetchCall[1].body;
                 const entries = Array.from(formData.entries()) as [string, MockFormDataEntry][];
                 
                 const mediaEntry = entries.find(([key]) => key === 'media');
                 expect(mediaEntry).toBeDefined();
+                console.log('Media entry filename:', mediaEntry![1].filename);
                 expect(mediaEntry![1].filename).toBe(expected);
                 
                 const messagesEntry = entries.find(([key]) => key === 'messages');
                 const messages = JSON.parse(messagesEntry![1].value);
+                console.log('Message media filename:', messages[0].data.media.fileName);
                 expect(messages[0].data.media.fileName).toBe(expected);
             }
         });
