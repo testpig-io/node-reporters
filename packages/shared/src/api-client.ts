@@ -30,11 +30,18 @@ export class APIClient {
         return true;
     }
 
+    private sanitizeFileName(fileName: string): string {
+        return fileName
+            .replace(/\s+/g, '-')        // Replace spaces with hyphens
+            .replace(/[^a-zA-Z0-9-_.]/g, '-')  // Replace other special chars with hyphens
+            .replace(/--+/g, '-')        // Replace multiple hyphens with single hyphen
+            .replace(/^-|-$/g, '');      // Remove leading/trailing hyphens
+    }
+
     async flushQueue(): Promise<boolean> {
         if (this.messageQueue.length === 0) return true;
 
         this.logger.info(`Attempting to send ${this.messageQueue.length} messages to ${this.baseUrl}/reporter-events/batch`);
-        this.logger.debug("Messages in queue:", this.messageQueue);
         
         try {
             const controller = new AbortController();
@@ -42,54 +49,41 @@ export class APIClient {
                 this.logger.warn('Request timed out, aborting');
                 controller.abort();
             }, 10000); // 10 second timeout
-            this.logger.debug("Controller Signal:", controller.signal);
             
             try {
                 const formData = new FormData();
-                const mediaFiles: Array<{
-                    id: string;
-                    data: Buffer;
-                    fileName: string | undefined;
-                    mimeType: string | undefined;
-                }> = [];
 
-                // Process queue and extract media
-                const queueWithoutMedia = this.messageQueue.map(message => {
+                // Process queue and keep media with its message
+                const processedMessages = this.messageQueue.map(message => {
                     if (message.data.media?.data) {
-                        const mediaData = message.data.media.data as any;  // Type assertion for checking
-                        
-                        this.logger.info('Media data found:', {
-                            hasData: !!mediaData,
-                            dataType: typeof mediaData,
-                            isBuffer: Buffer.isBuffer(mediaData),
-                            isBufferData: mediaData.type === 'Buffer',
-                            dataArray: Array.isArray(mediaData.data)
-                        });
-                        
                         const mediaId = message.data.rabbitMqId;
+                        const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
-                        // Only add media if we have the required data
-                        if (mediaId && mediaData) {
-                            // Convert back to Buffer if it's been JSON serialized
-                            const buffer = mediaData.type === 'Buffer' 
-                                ? Buffer.from(mediaData.data)
-                                : mediaData;
+                        // Convert back to Buffer if it's been JSON serialized
+                        const mediaData = message.data.media.data as any;
+                        const buffer = mediaData.type === 'Buffer' 
+                            ? Buffer.from(mediaData.data)
+                            : message.data.media.data;
 
-                            mediaFiles.push({
-                                id: mediaId,
-                                data: buffer,
-                                fileName: message.data.media.fileName,
-                                mimeType: message.data.media.mimeType
-                            });
-                            this.logger.info('Added media file to queue:', {
-                                id: mediaId,
-                                fileName: message.data.media.fileName,
-                                mimeType: message.data.media.mimeType,
-                                dataLength: buffer.length
-                            });
-                        }
+                        this.logger.debug('Processing media for message:', {
+                            messageId: mediaId,
+                            originalFileName: message.data.media.fileName,
+                            sanitizedFileName,
+                            mimeType: message.data.media.mimeType,
+                            dataSize: buffer.length,
+                            isSerializedBuffer: mediaData.type === 'Buffer'
+                        });
 
-                        // Replace media data with reference
+                        // Add this specific message's media file to FormData with sanitized name
+                        formData.append(
+                            'media',
+                            new Blob([buffer], {  // Use the properly converted buffer
+                                type: message.data.media.mimeType 
+                            }),
+                            sanitizedFileName  // Use sanitized filename here
+                        );
+
+                        // Return message with media reference but without binary data
                         return {
                             ...message,
                             data: {
@@ -97,6 +91,7 @@ export class APIClient {
                                 media: {
                                     ...message.data.media,
                                     mediaId,
+                                    fileName: sanitizedFileName,  // Update filename in message too
                                     data: undefined
                                 }
                             }
@@ -106,25 +101,12 @@ export class APIClient {
                 });
 
                 // Add messages JSON
-                formData.append('messages', JSON.stringify(queueWithoutMedia));
+                formData.append('messages', JSON.stringify(processedMessages));
 
-                // Add media files - simplified approach
-                mediaFiles.forEach(file => {
-                    this.logger.info('Processing media file:', {
-                        id: file.id,
-                        fileName: file.fileName,
-                        mimeType: file.mimeType,
-                        dataLength: file.data.length
-                    });
-                    
-                    formData.append('media', new Blob([file.data], { 
-                        type: file.mimeType 
-                    }), file.fileName);
-                });
-
-                this.logger.info('Final FormData entries:');
+                // Debug log what we're sending
+                this.logger.debug('Final FormData entries:');
                 for (const [key, value] of formData.entries()) {
-                    this.logger.info('FormData entry:', {
+                    this.logger.debug('FormData entry:', {
                         key,
                         value: value instanceof Blob ? 
                             `Blob (size: ${value.size}, type: ${value.type})` : 

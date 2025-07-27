@@ -144,6 +144,15 @@ class CypressReporter {
                 {
                     rabbitMqId: test.parent?.testSuiteId,
                     title: test.parent?.title
+                },
+                {
+                    name: this.cypressConfig?.browserName,
+                    version: this.cypressConfig?.browserVersion,
+                    viewPort: JSON.stringify({
+                        width: this.cypressConfig?.viewportWidth,
+                        height: this.cypressConfig?.viewportHeight
+                    }),
+                    platform: process.platform
                 }
             );
             this.eventHandler.queueEvent(TestEventsEnum.TEST_START, data);

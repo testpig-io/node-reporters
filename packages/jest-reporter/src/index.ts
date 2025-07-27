@@ -68,7 +68,6 @@ class JestReporter implements Reporter {
             const testId = uuidv4();
             const testBody = this.testBodyCache.getTestBody(test.path, result.title);
             describeTitle = this.testBodyCache.getDescribeTitle(test.path, result.title);
-            console.log("DESCRIBE TITLE:", describeTitle);
             this.logger.debug(`Processing test result: ${result.title}, status: ${result.status}`);
 
             // Send test start event

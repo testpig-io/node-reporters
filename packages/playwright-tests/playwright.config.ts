@@ -13,19 +13,23 @@ export default defineConfig({
     ],
     use: {
         trace: 'on-first-retry',
+        screenshot: 'only-on-failure',
     },
     projects: [
         {
             name: 'chromium',
-            use: {...devices['Desktop Chrome']},
+            outputDir: './test-results/chromium',
+            use: {...devices['Desktop Chrome'], screenshot: 'only-on-failure'},
         },
         {
             name: 'firefox',
-            use: {...devices['Desktop Firefox']},
+            outputDir: './test-results/firefox',
+            use: {...devices['Desktop Firefox'], screenshot: 'only-on-failure'},
         },
         {
             name: 'webkit',
-            use: {...devices['Desktop Safari']},
+            outputDir: './test-results/webkit',
+            use: {...devices['Desktop Safari'], screenshot: 'only-on-failure'},
         },
     ],
 });
