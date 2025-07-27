@@ -59,18 +59,25 @@ export class APIClient {
                         const mediaId = message.data.rabbitMqId;
                         const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
+                        // Convert back to Buffer if it's been JSON serialized
+                        const mediaData = message.data.media.data as any;
+                        const buffer = mediaData.type === 'Buffer' 
+                            ? Buffer.from(mediaData.data)
+                            : message.data.media.data;
+
                         this.logger.debug('Processing media for message:', {
                             messageId: mediaId,
                             originalFileName: message.data.media.fileName,
                             sanitizedFileName,
                             mimeType: message.data.media.mimeType,
-                            dataSize: message.data.media.data.length
+                            dataSize: buffer.length,
+                            isSerializedBuffer: mediaData.type === 'Buffer'
                         });
 
                         // Add this specific message's media file to FormData with sanitized name
                         formData.append(
                             'media',
-                            new Blob([message.data.media.data], { 
+                            new Blob([buffer], {  // Use the properly converted buffer
                                 type: message.data.media.mimeType 
                             }),
                             sanitizedFileName  // Use sanitized filename here
