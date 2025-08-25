@@ -1,62 +1,29 @@
-// Mock child_process before importing the module
-jest.doMock('child_process', () => ({
+import { getGitInfo } from '../git-info';
+
+// Mock child_process.execSync using jest.spyOn for more reliable mocking
+jest.mock('child_process', () => ({
   execSync: jest.fn()
 }));
 
 describe('getGitInfo', () => {
   const originalEnv = process.env;
-  let getGitInfo: any;
+  let mockExecSync: jest.SpyInstance;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
     
-    // Import the module after mocking
-    const gitInfoModule = await import('../git-info');
-    getGitInfo = gitInfoModule.getGitInfo;
+    // Get the mocked execSync
+    mockExecSync = jest.spyOn(require('child_process'), 'execSync');
     
     // Reset environment variables
     process.env = { ...originalEnv };
     
-    // Clear all CI-related environment variables by default
-    delete process.env.CI;
-    delete process.env.BUILD_ID;
-    delete process.env.BUILD_NUMBER;
-    delete process.env.GITHUB_ACTIONS;
-    delete process.env.GITHUB_REF_NAME;
-    delete process.env.GITHUB_REF;
-    delete process.env.GITHUB_SHA;
-    delete process.env.GITLAB_CI;
-    delete process.env.GITLAB_BRANCH;
-    delete process.env.GITLAB_COMMIT_SHA;
-    delete process.env.CIRCLECI;
-    delete process.env.CIRCLE_BRANCH;
-    delete process.env.CIRCLE_SHA1;
-    delete process.env.BITBUCKET_BRANCH;
-    delete process.env.BITBUCKET_COMMIT;
-    delete process.env.BRANCH_NAME;
-    delete process.env.BUILDKITE_BRANCH;
-    delete process.env.BUILDKITE_COMMIT;
-    delete process.env.TRAVIS_BRANCH;
-    delete process.env.TRAVIS_COMMIT;
-    delete process.env.APPVEYOR_REPO_BRANCH;
-    delete process.env.APPVEYOR_REPO_COMMIT;
-    delete process.env.DRONE_BRANCH;
-    delete process.env.DRONE_COMMIT;
-    delete process.env.SEMAPHORE_GIT_BRANCH;
-    delete process.env.SEMAPHORE_GIT_SHA;
-    delete process.env.CI_COMMIT_REF_NAME;
-    delete process.env.CI_COMMIT_SHA;
-    delete process.env.GIT_COMMIT;
-    delete process.env.COMMIT_ID;
-    delete process.env.GIT_AUTHOR_NAME;
-    delete process.env.COMMIT_AUTHOR;
-    delete process.env.GIT_COMMITTER_NAME;
-    delete process.env.COMMIT_COMMITTER;
+    // Don't clear CI environment variables here - let individual tests set what they need
   });
 
-  afterAll(() => {
-    process.env = originalEnv;
+  afterEach(() => {
+    mockExecSync.mockRestore();
   });
 
   describe('CI Environment Detection', () => {
