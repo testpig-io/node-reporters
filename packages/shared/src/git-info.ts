@@ -17,7 +17,7 @@ function isCI(): boolean {
 function getBranchFromEnvironment(): string | null {
   // Try to get branch from various CI environment variables
   const branchVars = [
-    'GITHUB_REF_NAME',           // GitHub Actions
+    'GITHUB_REF_NAME',           // GitHub Actions (preferred)
     'GITLAB_BRANCH',            // GitLab CI
     'CIRCLE_BRANCH',            // CircleCI
     'BITBUCKET_BRANCH',         // Bitbucket Pipelines
@@ -27,9 +27,7 @@ function getBranchFromEnvironment(): string | null {
     'APPVEYOR_REPO_BRANCH',     // AppVeyor
     'DRONE_BRANCH',             // Drone CI
     'SEMAPHORE_GIT_BRANCH',     // Semaphore CI
-    'GITHUB_REF',               // GitHub Actions (alternative)
     'CI_COMMIT_REF_NAME',       // GitLab CI (alternative)
-    'CIRCLE_WORKING_DIRECTORY', // CircleCI (alternative)
   ];
 
   for (const varName of branchVars) {
@@ -44,6 +42,16 @@ function getBranchFromEnvironment(): string | null {
       }
       
       return branch;
+    }
+  }
+
+  // Special handling for GitHub Actions when GITHUB_REF_NAME is not available
+  if (process.env.GITHUB_REF) {
+    const ref = process.env.GITHUB_REF;
+    if (ref.startsWith('refs/heads/')) {
+      return ref.replace('refs/heads/', '');
+    } else if (ref.startsWith('refs/pull/')) {
+      return `PR-${ref.split('/')[2]}`;
     }
   }
 
@@ -96,8 +104,15 @@ function getAuthorFromEnvironment(): string | null {
       const author = process.env[varName]!;
       
       // Try to get email from corresponding email variables
-      const emailVar = varName.replace('_NAME', '_EMAIL').replace('_AUTHOR', '_EMAIL');
-      const email = process.env[emailVar] || process.env[emailVar.replace('_EMAIL', '_MAIL')];
+      let emailVar = varName.replace('_NAME', '_EMAIL').replace('_AUTHOR', '_EMAIL');
+      let email = process.env[emailVar] || process.env[emailVar.replace('_EMAIL', '_MAIL')];
+      
+      // Handle specific cases for different CI providers
+      if (varName === 'GITHUB_ACTOR') {
+        email = process.env.GITHUB_ACTOR_EMAIL;
+      } else if (varName === 'TRAVIS_COMMIT_AUTHOR') {
+        email = process.env.TRAVIS_COMMIT_AUTHOR_EMAIL;
+      }
       
       if (email) {
         return `${author} (${email})`;
@@ -123,8 +138,15 @@ function getCommitterFromEnvironment(): string | null {
       const committer = process.env[varName]!;
       
       // Try to get email from corresponding email variables
-      const emailVar = varName.replace('_NAME', '_EMAIL').replace('_COMMITTER', '_EMAIL');
-      const email = process.env[emailVar] || process.env[emailVar.replace('_EMAIL', '_MAIL')];
+      let email: string | undefined;
+      
+      if (varName === 'GIT_COMMITTER_NAME') {
+        email = process.env.GIT_COMMITTER_EMAIL;
+      } else if (varName === 'COMMIT_COMMITTER') {
+        email = process.env.COMMIT_COMMITTER_EMAIL;
+      } else if (varName === 'GIT_AUTHOR_NAME') {
+        email = process.env.GIT_AUTHOR_EMAIL;
+      }
       
       if (email) {
         return `${committer} (${email})`;
@@ -150,7 +172,10 @@ function getBranchFromGit(): string | null {
     try {
       const result = runGitCommand(cmd);
       if (result && result !== 'HEAD' && result !== 'undefined') {
-        return result;
+        // Filter out merge commit names like "9/merge"
+        if (!result.includes('/merge') && !result.includes('/head')) {
+          return result;
+        }
       }
     } catch {}
   }
