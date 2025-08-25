@@ -1,17 +1,20 @@
-// Mock child_process before importing the module
-jest.mock('child_process');
-
-// Import after mocking
 import { getGitInfo } from '../git-info';
-import { execSync } from 'child_process';
+
+// Mock child_process.execSync using jest.spyOn for more reliable mocking
+jest.mock('child_process', () => ({
+  execSync: jest.fn()
+}));
 
 describe('getGitInfo', () => {
   const originalEnv = process.env;
-  const mockExecSync = execSync as jest.MockedFunction<typeof execSync>;
+  let mockExecSync: jest.SpyInstance;
 
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
+    
+    // Get the mocked execSync
+    mockExecSync = jest.spyOn(require('child_process'), 'execSync');
     
     // Reset environment variables
     process.env = { ...originalEnv };
@@ -19,8 +22,8 @@ describe('getGitInfo', () => {
     // Don't clear CI environment variables here - let individual tests set what they need
   });
 
-  afterAll(() => {
-    process.env = originalEnv;
+  afterEach(() => {
+    mockExecSync.mockRestore();
   });
 
   describe('CI Environment Detection', () => {
