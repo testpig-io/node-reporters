@@ -1,6 +1,6 @@
 {
   "name": "@testpig/webdriverio-reporter",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "TestPig reporter for WebdriverIO",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,8 +9,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@testpig/core": "^1.0.4",
-    "@testpig/shared": "^1.0.4",
+    "@testpig/core": "^1.0.5",
+    "@testpig/shared": "^1.0.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
