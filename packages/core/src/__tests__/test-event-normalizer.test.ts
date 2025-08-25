@@ -8,7 +8,9 @@ jest.mock('@testpig/shared', () => ({
     getGitInfo: jest.fn().mockReturnValue({
         branch: 'main',
         commit: 'abc123',
-        author: 'test@example.com'
+        author: 'test@example.com',
+        committer: 'test@example.com',
+        isCI: false
     }),
     createLogger: () => ({
         debug: jest.fn(),
