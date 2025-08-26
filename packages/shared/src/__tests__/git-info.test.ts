@@ -60,120 +60,147 @@ describe('getGitInfo', () => {
   });
 
   describe('CI Environment Detection', () => {
-    it('should detect CI from CI environment variable', () => {
-      process.env.CI = 'true';
+    it('should detect GitHub Actions CI', () => {
+      process.env.GITHUB_ACTIONS = 'true';
       
       const result = getGitInfo();
       expect(result.isCI).toBe(true);
+      expect(result.ciProvider).toBe('github');
     });
 
-    it('should detect CI from BUILD_ID environment variable', () => {
-      process.env.BUILD_ID = '12345';
+    it('should detect GitLab CI', () => {
+      process.env.GITLAB_CI = 'true';
       
       const result = getGitInfo();
       expect(result.isCI).toBe(true);
+      expect(result.ciProvider).toBe('gitlab');
     });
 
-    it('should detect CI from BUILD_NUMBER environment variable', () => {
+    it('should detect CircleCI', () => {
+      process.env.CIRCLECI = 'true';
+      
+      const result = getGitInfo();
+      expect(result.isCI).toBe(true);
+      expect(result.ciProvider).toBe('circle');
+    });
+
+    it('should detect Jenkins', () => {
       process.env.BUILD_NUMBER = '67';
       
       const result = getGitInfo();
       expect(result.isCI).toBe(true);
+      expect(result.ciProvider).toBe('jenkins');
+    });
+
+    it('should return unknown provider when no CI detected', () => {
+      const result = getGitInfo();
+      expect(result.isCI).toBe(false);
+      expect(result.ciProvider).toBeUndefined();
     });
   });
 
   describe('CI Environment - Branch Detection', () => {
-    beforeEach(() => {
-      process.env.CI = 'true';
-    });
-
     it('should use GITHUB_REF_NAME for GitHub Actions', () => {
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_REF_NAME = 'main';
       
       const result = getGitInfo();
       expect(result.branch).toBe('main');
+      expect(result.ciProvider).toBe('github');
     });
 
     it('should handle GitHub refs and convert to branch names', () => {
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_REF = 'refs/heads/feature-branch';
       
       const result = getGitInfo();
       expect(result.branch).toBe('feature-branch');
+      expect(result.ciProvider).toBe('github');
     });
 
     it('should handle GitHub pull request refs', () => {
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_REF = 'refs/pull/123/head';
       
       const result = getGitInfo();
       expect(result.branch).toBe('PR-123');
+      expect(result.ciProvider).toBe('github');
     });
 
-    it('should use GITLAB_BRANCH for GitLab CI', () => {
-      process.env.GITLAB_BRANCH = 'develop';
+    it('should use CI_COMMIT_REF_NAME for GitLab CI', () => {
+      process.env.GITLAB_CI = 'true';
+      process.env.CI_COMMIT_REF_NAME = 'develop';
       
       const result = getGitInfo();
       expect(result.branch).toBe('develop');
+      expect(result.ciProvider).toBe('gitlab');
     });
 
     it('should use CIRCLE_BRANCH for CircleCI', () => {
+      process.env.CIRCLECI = 'true';
       process.env.CIRCLE_BRANCH = 'hotfix';
       
       const result = getGitInfo();
       expect(result.branch).toBe('hotfix');
+      expect(result.ciProvider).toBe('circle');
     });
 
     it('should use BITBUCKET_BRANCH for Bitbucket Pipelines', () => {
+      process.env.BITBUCKET_BUILD_NUMBER = '123';
       process.env.BITBUCKET_BRANCH = 'release';
       
       const result = getGitInfo();
       expect(result.branch).toBe('release');
+      expect(result.ciProvider).toBe('bitbucket');
     });
 
-    it('should use BRANCH_NAME for Jenkins/TeamCity', () => {
+    it('should use BRANCH_NAME for Jenkins', () => {
+      process.env.BUILD_NUMBER = '67';
       process.env.BRANCH_NAME = 'jenkins-branch';
       
       const result = getGitInfo();
       expect(result.branch).toBe('jenkins-branch');
+      expect(result.ciProvider).toBe('jenkins');
     });
   });
 
   describe('CI Environment - Commit Detection', () => {
-    beforeEach(() => {
-      process.env.CI = 'true';
-    });
-
     it('should use GITHUB_SHA for GitHub Actions', () => {
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_SHA = 'github-commit-123';
       
       const result = getGitInfo();
       expect(result.commit).toBe('github-commit-123');
+      expect(result.ciProvider).toBe('github');
     });
 
-    it('should use GITLAB_COMMIT_SHA for GitLab CI', () => {
-      process.env.GITLAB_COMMIT_SHA = 'gitlab-commit-456';
+    it('should use CI_COMMIT_SHA for GitLab CI', () => {
+      process.env.GITLAB_CI = 'true';
+      process.env.CI_COMMIT_SHA = 'gitlab-commit-456';
       
       const result = getGitInfo();
       expect(result.commit).toBe('gitlab-commit-456');
+      expect(result.ciProvider).toBe('gitlab');
     });
 
     it('should use CIRCLE_SHA1 for CircleCI', () => {
+      process.env.CIRCLECI = 'true';
       process.env.CIRCLE_SHA1 = 'circle-commit-789';
       
       const result = getGitInfo();
       expect(result.commit).toBe('circle-commit-789');
+      expect(result.ciProvider).toBe('circle');
     });
   });
 
   describe('CI Environment - Author Detection', () => {
-    beforeEach(() => {
-      process.env.CI = 'true';
-    });
-
     it('should use GITHUB_ACTOR for GitHub Actions', () => {
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_ACTOR = 'github-user';
       
       const result = getGitInfo();
       expect(result.author).toBe('github-user');
+      expect(result.ciProvider).toBe('github');
     });
 
     it.skip('should combine author name and email when both are available', () => {
@@ -194,30 +221,40 @@ describe('getGitInfo', () => {
   });
 
   describe('CI Environment - Committer Detection', () => {
-    beforeEach(() => {
-      process.env.CI = 'true';
-    });
-
-    it('should use GIT_COMMITTER_NAME when available', () => {
+    it('should use GIT_COMMITTER_NAME when available in Jenkins', () => {
+      process.env.BUILD_NUMBER = '123';
       process.env.GIT_COMMITTER_NAME = 'committer-user';
       process.env.GIT_COMMITTER_EMAIL = 'committer@example.com';
       
       const result = getGitInfo();
       expect(result.committer).toBe('committer-user (committer@example.com)');
+      expect(result.ciProvider).toBe('jenkins');
     });
 
-    it('should fallback to author when no committer variables are available', () => {
-      process.env.GIT_AUTHOR_NAME = 'author-user';
-      process.env.GIT_AUTHOR_EMAIL = 'author@example.com';
+    it('should use CI_COMMIT_COMMITTER for GitLab CI', () => {
+      process.env.GITLAB_CI = 'true';
+      process.env.CI_COMMIT_COMMITTER = 'gitlab-committer';
+      process.env.CI_COMMIT_COMMITTER_EMAIL = 'committer@gitlab.com';
       
       const result = getGitInfo();
-      expect(result.committer).toBe('author-user (author@example.com)');
+      expect(result.committer).toBe('gitlab-committer (committer@gitlab.com)');
+      expect(result.ciProvider).toBe('gitlab');
+    });
+
+    it('should fallback to generic committer when provider-specific not available', () => {
+      process.env.GITHUB_ACTIONS = 'true';
+      process.env.GIT_COMMITTER_NAME = 'generic-committer';
+      process.env.GIT_COMMITTER_EMAIL = 'generic@example.com';
+      
+      const result = getGitInfo();
+      expect(result.committer).toBe('generic-committer (generic@example.com)');
+      expect(result.ciProvider).toBe('github');
     });
   });
 
   describe('Edge Cases', () => {
     it('should handle empty environment variables gracefully', () => {
-      process.env.CI = 'true';
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_REF_NAME = '';
       process.env.GITHUB_SHA = '';
       
@@ -225,15 +262,26 @@ describe('getGitInfo', () => {
       // Should fallback to git commands or unknown
       expect(result.branch).toBeDefined();
       expect(result.commit).toBeDefined();
+      expect(result.ciProvider).toBe('github');
     });
 
     it('should handle undefined environment variables gracefully', () => {
-      process.env.CI = 'true';
+      process.env.GITHUB_ACTIONS = 'true';
       process.env.GITHUB_REF_NAME = undefined;
       
       const result = getGitInfo();
       // Should fallback to git commands or unknown
       expect(result.branch).toBeDefined();
+      expect(result.ciProvider).toBe('github');
+    });
+
+    it('should return local development when no CI provider detected', () => {
+      const result = getGitInfo();
+      expect(result.isCI).toBe(false);
+      expect(result.ciProvider).toBeUndefined();
+      // Should use git commands for local development
+      expect(result.branch).toBeDefined();
+      expect(result.commit).toBeDefined();
     });
   });
 });
