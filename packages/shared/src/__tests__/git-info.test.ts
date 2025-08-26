@@ -39,42 +39,74 @@ describe('getGitInfo', () => {
     // Reset environment variables
     process.env = { ...originalEnv };
     
-    // Clear all CI-related environment variables by default
-    delete process.env.CI;
-    delete process.env.BUILD_ID;
-    delete process.env.BUILD_NUMBER;
-    delete process.env.TESTPIG_DEBUG_LOGS;
-    delete process.env.GITHUB_ACTIONS;
-    delete process.env.GITHUB_REF_NAME;
-    delete process.env.GITHUB_REF;
-    delete process.env.GITHUB_SHA;
-    delete process.env.GITLAB_CI;
-    delete process.env.GITLAB_BRANCH;
-    delete process.env.GITLAB_COMMIT_SHA;
-    delete process.env.CIRCLECI;
-    delete process.env.CIRCLE_BRANCH;
-    delete process.env.CIRCLE_SHA1;
-    delete process.env.BITBUCKET_BRANCH;
-    delete process.env.BITBUCKET_COMMIT;
-    delete process.env.BRANCH_NAME;
-    delete process.env.BUILDKITE_BRANCH;
-    delete process.env.BUILDKITE_COMMIT;
-    delete process.env.TRAVIS_BRANCH;
-    delete process.env.TRAVIS_COMMIT;
-    delete process.env.APPVEYOR_REPO_BRANCH;
-    delete process.env.APPVEYOR_REPO_COMMIT;
-    delete process.env.DRONE_BRANCH;
-    delete process.env.DRONE_COMMIT;
-    delete process.env.SEMAPHORE_GIT_BRANCH;
-    delete process.env.SEMAPHORE_GIT_SHA;
-    delete process.env.CI_COMMIT_REF_NAME;
-    delete process.env.CI_COMMIT_SHA;
-    delete process.env.GIT_COMMIT;
-    delete process.env.COMMIT_ID;
-    delete process.env.GIT_AUTHOR_NAME;
-    delete process.env.COMMIT_AUTHOR;
-    delete process.env.GIT_COMMITTER_NAME;
-    delete process.env.COMMIT_COMMITTER;
+    // Clear ALL CI-related environment variables comprehensively
+    const ciEnvVars = [
+      // Generic CI variables
+      'CI', 'BUILD_ID', 'BUILD_NUMBER', 'TESTPIG_DEBUG_LOGS',
+      
+      // GitHub Actions
+      'GITHUB_ACTIONS', 'GITHUB_RUN_ID', 'GITHUB_REF_NAME', 'GITHUB_REF', 'GITHUB_SHA', 
+      'GITHUB_ACTOR', 'GITHUB_HEAD_REF', 'GITHUB_ACTOR_EMAIL',
+      
+      // GitLab CI
+      'GITLAB_CI', 'CI_PIPELINE_ID', 'GITLAB_BRANCH', 'GITLAB_COMMIT_SHA', 'CI_COMMIT_REF_NAME',
+      'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME', 'CI_COMMIT_SHA', 'GITLAB_USER_NAME', 'CI_COMMIT_AUTHOR',
+      'GITLAB_USER_EMAIL', 'CI_COMMIT_AUTHOR_EMAIL', 'CI_COMMIT_COMMITTER', 'CI_COMMIT_COMMITTER_EMAIL',
+      
+      // CircleCI
+      'CIRCLECI', 'CIRCLE_WORKFLOW_ID', 'CIRCLE_BUILD_NUM', 'CIRCLE_BRANCH', 'CIRCLE_SHA1', 'CIRCLE_USERNAME',
+      
+      // Travis CI
+      'TRAVIS', 'TRAVIS_BUILD_ID', 'TRAVIS_BRANCH', 'TRAVIS_PULL_REQUEST_BRANCH', 'TRAVIS_COMMIT',
+      'TRAVIS_COMMIT_AUTHOR', 'TRAVIS_COMMIT_AUTHOR_EMAIL',
+      
+      // Jenkins
+      'JENKINS_URL', 'BUILD_NUMBER', 'BRANCH_NAME', 'GIT_BRANCH', 'GIT_COMMIT', 'GIT_AUTHOR_NAME',
+      'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
+      
+      // Buildkite
+      'BUILDKITE', 'BUILDKITE_BUILD_ID', 'BUILDKITE_BRANCH', 'BUILDKITE_COMMIT', 'BUILDKITE_BUILD_CREATOR',
+      
+      // AppVeyor
+      'APPVEYOR', 'APPVEYOR_BUILD_NUMBER', 'APPVEYOR_REPO_BRANCH', 'APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH',
+      'APPVEYOR_REPO_COMMIT', 'APPVEYOR_REPO_COMMIT_AUTHOR', 'APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL',
+      
+      // Azure Pipelines
+      'AZURE_HTTP_USER_AGENT', 'BUILD_BUILDNUMBER', 'TF_BUILD', 'BUILD_SOURCEBRANCH', 'SYSTEM_PULLREQUEST_SOURCEBRANCH',
+      'BUILD_SOURCEVERSION', 'BUILD_REQUESTEDFOR', 'BUILD_REQUESTEDFOREMAIL',
+      
+      // Bitbucket
+      'BITBUCKET_BUILD_NUMBER', 'BITBUCKET_COMMIT', 'BITBUCKET_BRANCH', 'BITBUCKET_COMMIT_AUTHOR',
+      
+      // Drone CI
+      'DRONE', 'DRONE_BUILD_NUMBER', 'DRONE_BRANCH', 'DRONE_SOURCE_BRANCH', 'DRONE_COMMIT', 
+      'DRONE_COMMIT_SHA', 'DRONE_COMMIT_AUTHOR', 'DRONE_COMMIT_AUTHOR_EMAIL',
+      
+      // Semaphore CI
+      'SEMAPHORE', 'SEMAPHORE_EXECUTABLE_UUID', 'SEMAPHORE_GIT_BRANCH', 'SEMAPHORE_GIT_PR_BRANCH',
+      'SEMAPHORE_GIT_SHA', 'SEMAPHORE_GIT_AUTHOR', 'SEMAPHORE_GIT_AUTHOR_EMAIL',
+      
+      // TeamCity
+      'TEAMCITY_VERSION', 'BUILD_VCS_BRANCH', 'BUILD_VCS_NUMBER', 'BUILD_VCS_AUTHOR',
+      
+      // Bamboo
+      'bamboo_buildNumber', 'bamboo_planKey', 'bamboo_planRepository_branch', 'bamboo_planRepository_revision',
+      'bamboo_planRepository_username',
+      
+      // Codeship
+      'CI_NAME', 'CODESHIP', 'CI_BRANCH', 'CI_COMMIT_ID', 'CI_COMMITTER_NAME',
+      
+      // AWS CodeBuild
+      'CODEBUILD_BUILD_ARN', 'CODEBUILD_INITIATOR', 'CODEBUILD_WEBHOOK_HEAD_REF', 'CODEBUILD_RESOLVED_SOURCE_VERSION',
+      
+      // Generic Git variables
+      'COMMIT_ID', 'COMMIT_AUTHOR', 'COMMIT_COMMITTER', 'COMMIT_COMMITTER_EMAIL'
+    ];
+    
+    // Clear all CI environment variables
+    ciEnvVars.forEach(varName => {
+      delete process.env[varName];
+    });
   });
 
   afterAll(() => {
