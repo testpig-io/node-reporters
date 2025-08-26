@@ -1,6 +1,15 @@
-// Mock child_process before importing the module
+// Mock child_process and logger before importing the module
 jest.doMock('child_process', () => ({
   execSync: jest.fn()
+}));
+
+jest.doMock('../logger', () => ({
+  createLogger: jest.fn(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+  }))
 }));
 
 describe('getGitInfo', () => {
@@ -10,6 +19,18 @@ describe('getGitInfo', () => {
   beforeEach(async () => {
     // Clear all mocks
     jest.clearAllMocks();
+    
+    // Set up execSync mock to return predictable values
+    const { execSync } = require('child_process');
+    execSync.mockImplementation((cmd: string) => {
+      if (cmd === 'git rev-parse --abbrev-ref HEAD') return 'mock-branch';
+      if (cmd === 'git rev-parse HEAD') return 'mock-commit-hash';
+      if (cmd.includes('git log -1 --pretty=format:"%an (%ae)"')) return 'Mock Author (mock@example.com)';
+      if (cmd.includes('git log -1 --pretty=format:"%cn (%ce)"')) return 'Mock Committer (mock@example.com)';
+      if (cmd.includes('git config user.name')) return 'Mock User';
+      if (cmd.includes('git config user.email')) return 'mock@example.com';
+      return '';
+    });
     
     // Import the module after mocking
     const gitInfoModule = await import('../git-info');
@@ -22,6 +43,7 @@ describe('getGitInfo', () => {
     delete process.env.CI;
     delete process.env.BUILD_ID;
     delete process.env.BUILD_NUMBER;
+    delete process.env.TESTPIG_DEBUG_LOGS;
     delete process.env.GITHUB_ACTIONS;
     delete process.env.GITHUB_REF_NAME;
     delete process.env.GITHUB_REF;
