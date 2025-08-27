@@ -212,13 +212,21 @@ function getBranchFromProvider(provider: CIProvider): string | null {
 }
 
 function getBranchFromGitHub(): string | null {
-  logger.debug(`GitHub branch detection - GITHUB_REF_NAME: ${process.env.GITHUB_REF_NAME}, GITHUB_REF: ${process.env.GITHUB_REF}, GITHUB_HEAD_REF: ${process.env.GITHUB_HEAD_REF}`);
+  logger.debug(`GitHub branch detection - GITHUB_EVENT_NAME: ${process.env.GITHUB_EVENT_NAME}, GITHUB_HEAD_REF: ${process.env.GITHUB_HEAD_REF}, GITHUB_REF_NAME: ${process.env.GITHUB_REF_NAME}, GITHUB_REF: ${process.env.GITHUB_REF}`);
   
+  // For Pull Requests - prioritize GITHUB_HEAD_REF (the actual PR branch)
+  if (process.env.GITHUB_EVENT_NAME === 'pull_request' && process.env.GITHUB_HEAD_REF) {
+    logger.debug(`Using GITHUB_HEAD_REF for PR: ${process.env.GITHUB_HEAD_REF}`);
+    return process.env.GITHUB_HEAD_REF;
+  }
+  
+  // For regular pushes or when GITHUB_HEAD_REF is not available - use GITHUB_REF_NAME
   if (process.env.GITHUB_REF_NAME) {
     logger.debug(`Using GITHUB_REF_NAME: ${process.env.GITHUB_REF_NAME}`);
     return process.env.GITHUB_REF_NAME;
   }
   
+  // Fallback logic for older GitHub Actions or edge cases
   if (process.env.GITHUB_REF) {
     const ref = process.env.GITHUB_REF;
     if (ref.startsWith('refs/heads/')) {
@@ -232,8 +240,9 @@ function getBranchFromGitHub(): string | null {
     }
   }
   
+  // Final fallback - GITHUB_HEAD_REF (for PRs where event name might not be set correctly)
   if (process.env.GITHUB_HEAD_REF) {
-    logger.debug(`Using GITHUB_HEAD_REF: ${process.env.GITHUB_HEAD_REF}`);
+    logger.debug(`Using GITHUB_HEAD_REF as fallback: ${process.env.GITHUB_HEAD_REF}`);
     return process.env.GITHUB_HEAD_REF;
   }
   
