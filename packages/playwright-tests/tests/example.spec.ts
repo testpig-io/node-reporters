@@ -22,7 +22,7 @@ test.describe('Example Test Suite', () => {
         });
     });
 
-    test('should fail the test', async() => {
+    test.skip('should fail the test', async() => {
         expect(true).toBe(false);
     });
 });

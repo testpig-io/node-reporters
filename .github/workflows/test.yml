@@ -8,6 +8,10 @@ on:
 
 jobs:
   test:
+    env:
+      TESTPIG_API_KEY: ${{ secrets.TESTPIG_API_KEY}}
+      TESTPIG_DEBUG_LOGS: false
+      TESTPIG_PROJECT_ID: ee47c
     runs-on: ubuntu-latest
 
     strategy:
@@ -27,8 +31,14 @@ jobs:
       run: |
         npm ci
 
+    - name: Install Playwright browsers
+      run: |
+        npx playwright install-deps 
+        npx playwright install
+
     - name: Build packages
       run: npx lerna run build
       
-    - name: Run tests
-      run: npx lerna run test --scope=@testpig/core --scope=@testpig/shared 
+    - name: Run tests for all packages
+      run: | 
+        npx lerna run test --scope=@testpig/core --scope=@testpig/shared --scope=@testpig/cypress-tests --scope=@testpig/jest-tests --scope=@testpig/mocha-tests --scope=@testpig/playwright-tests --scope=@testpig/vitest-tests --scope=@testpig/webdriverio-tests

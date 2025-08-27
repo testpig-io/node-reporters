@@ -1,5 +1,7 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
+  reporters: ['default', ['../jest-reporter/dist/index.js', {
+  }]],
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
