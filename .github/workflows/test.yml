@@ -32,7 +32,9 @@ jobs:
         npm ci
 
     - name: Install Playwright browsers
-      run: npx playwright install
+      run: |
+        npx playwright install
+        npx playwright install-deps 
 
     - name: Build packages
       run: npx lerna run build
