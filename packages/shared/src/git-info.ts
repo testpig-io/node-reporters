@@ -669,12 +669,6 @@ function getCommitterFromGit(): string | null {
 }
 
 export function getGitInfo() {
-  console.log('[DEBUG] getGitInfo > Environment variables:', {
-    GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
-    GITHUB_REF_NAME: process.env.GITHUB_REF_NAME,
-    GITHUB_SHA: process.env.GITHUB_SHA,
-    GITHUB_REF: process.env.GITHUB_REF,
-  });
   logger.info('Starting git information extraction...');
   
   const ciProvider = detectCIProvider();
