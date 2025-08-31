@@ -53,11 +53,14 @@ export class APIClient {
             
             try {
                 const formData = new FormData();
+                this.logger.debug(`FormData created: ${JSON.stringify(formData, null, 2)}`);
 
                 // Process queue and keep media with its message
-                const processedMessages = this.messageQueue.map(message => {
-                    logMessage = JSON.stringify(message, null, 2);
+                const processedMessages = this.messageQueue.map((message, index) => {
+                    this.logger.info(`Processing message: ${index} ${JSON.stringify(message, null, 2)}`);
+                    logMessage = `[logMessage] message: ${index} ${JSON.stringify(message, null, 2)}`;
                     if (message.data.media?.data) {
+                        this.logger.info(`Processing media > Found media data: ${index} ${JSON.stringify(message.data.media, null, 2)}`);
                         const mediaId = message.data.rabbitMqId;
                         const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
@@ -66,6 +69,8 @@ export class APIClient {
                         const buffer = mediaData.type === 'Buffer' 
                             ? Buffer.from(mediaData.data)
                             : message.data.media.data;
+
+                        this.logger.info(`Processing media > Converted buffer: ${index} ${JSON.stringify(buffer, null, 2)}`);
 
                         // this.logger.debug('Processing media for message:', {
                         //     messageId: mediaId,
@@ -103,7 +108,7 @@ export class APIClient {
                     return message;
                 });
 
-                logMessage = JSON.stringify(processedMessages, null, 2);
+                logMessage = `[logMessage] <NoIndex> processedMessages: ${JSON.stringify(processedMessages, null, 2)}`;
 
                 // Add messages JSON
                 formData.append('messages', JSON.stringify(processedMessages));
