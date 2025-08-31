@@ -131,7 +131,7 @@ export class APIClient {
                     signal: controller.signal
                 });
 
-                this.logger.debug(`Full response:`, JSON.stringify(response, null, 2));
+                this.logger.debug(`Full response: ${JSON.stringify(response, null, 2)}`);
 
                 this.logger.info(`Response received: status=${response.status}, ok=${response.ok}`);
 
