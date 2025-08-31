@@ -39,6 +39,27 @@ jobs:
     - name: Build packages
       run: npx lerna run build
       
-    - name: Run tests for all packages
+    - name: Run tests for core package
       run: | 
-        npx lerna run test --scope=@testpig/core --scope=@testpig/shared --scope=@testpig/cypress-tests --scope=@testpig/jest-tests --scope=@testpig/mocha-tests --scope=@testpig/playwright-tests --scope=@testpig/vitest-tests --scope=@testpig/webdriverio-tests
+        npx lerna run test --scope=@testpig/core --scope=@testpig/shared
+ 
+    - name: Run tests for shared package
+      run: npx lerna run test --scope=@testpig/shared
+
+    - name: Run tests for cypress tests
+      run: npx lerna run test --scope=@testpig/cypress-tests
+
+    - name: Run tests for jest tests
+      run: npx lerna run test --scope=@testpig/jest-tests
+
+    - name: Run tests for mocha tests
+      run: npx lerna run test --scope=@testpig/mocha-tests
+
+    - name: Run tests for playwright tests
+      run: npx lerna run test --scope=@testpig/playwright-tests
+
+    - name: Run tests for webdriverio tests
+      run: npx lerna run test --scope=@testpig/webdriverio-tests
+
+    - name: Run tests for vitest tests
+      run: npx lerna run test --scope=@testpig/vitest-tests
