@@ -31,8 +31,14 @@ jobs:
         run: |
           npm ci
 
-      - name: Install chromedriver
-        uses: nanasess/setup-chromedriver@v2
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: '131'
+  
+      - uses: nanasess/setup-chromedriver@v2
+        with:
+          chromedriver-version: '131.0.6778.87'
 
       - name: Install Playwright browsers
         run: |
@@ -41,6 +47,9 @@ jobs:
 
       - name: Build packages
         run: npx lerna run build
+
+      - name: Run tests for webdriverio tests
+        run: npx lerna run test --scope=@testpig/webdriverio-tests
 
       - name: Run tests for core package
         run: |
@@ -60,9 +69,6 @@ jobs:
 
       - name: Run tests for playwright tests
         run: npx lerna run test --scope=@testpig/playwright-tests
-
-      - name: Run tests for webdriverio tests
-        run: npx lerna run test --scope=@testpig/webdriverio-tests
 
       - name: Run tests for vitest tests
         run: npx lerna run test --scope=@testpig/vitest-tests
