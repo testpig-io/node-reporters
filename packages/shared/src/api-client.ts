@@ -152,9 +152,9 @@ export class APIClient {
                 this.logger.debug('Request completed or timed out');
             }
         } catch (error) {
-            this.logger.error('Failed to send test results to TestPig > Error:', error);
-            this.logger.error('Failed to send test results to TestPig:', JSON.stringify(this.messageQueue, null, 2));
-            this.logger.error('Failed to send test results to TestPig > Log Message:', logMessage);
+            this.logger.error(`Failed to send test results to TestPig > Error: ${error}`);
+            this.logger.error(`Failed to send test results to TestPig: ${JSON.stringify(this.messageQueue, null, 2)}`);
+            this.logger.error(`Failed to send test results to TestPig > Log Message: ${logMessage}`);
             this.logger.warn('Keeping messages in queue for potential retry');
             return false; // Return false but don't throw to avoid crashing
         }
