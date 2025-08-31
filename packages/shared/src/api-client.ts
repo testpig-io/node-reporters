@@ -111,12 +111,12 @@ export class APIClient {
                 // Debug log what we're sending
                 this.logger.debug('Final FormData entries:');
                 for (const [key, value] of formData.entries()) {
-                    this.logger.debug('FormData entry:', JSON.stringify({
+                    this.logger.debug('FormData entry:', {
                         key,
                         value: value instanceof Blob ? 
                             `Blob (size: ${value.size}, type: ${value.type})` : 
-                            'JSON data'
-                    }));
+                            JSON.stringify(value, null, 2)
+                    });
                 }
 
                 const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
