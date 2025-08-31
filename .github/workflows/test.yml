@@ -57,25 +57,25 @@ jobs:
 
       - name: Run tests for core package
         run: |
-          npx lerna run test --scope=@testpig/core 2>&1 | npx ansi-to-html --bg=dark > test-results/test-core.html
+          npx lerna run test --scope=@testpig/core 2>&1 | npx ansi-to-html > test-results/test-core.html
 
       - name: Run tests for shared package
-        run: npx lerna run test --scope=@testpig/shared 2>&1 | npx ansi-to-html --bg=dark > test-results/test-shared.html
+        run: npx lerna run test --scope=@testpig/shared 2>&1 | npx ansi-to-html > test-results/test-shared.html
 
       - name: Run tests for cypress tests
-        run: npx lerna run test --scope=@testpig/cypress-tests 2>&1 | npx ansi-to-html --bg=dark > test-results/test-cypress.html
+        run: npx lerna run test --scope=@testpig/cypress-tests 2>&1 | npx ansi-to-html > test-results/test-cypress.html
 
       - name: Run tests for jest tests
-        run: npx lerna run test --scope=@testpig/jest-tests 2>&1 | npx ansi-to-html --bg=dark > test-results/test-jest.html
+        run: npx lerna run test --scope=@testpig/jest-tests 2>&1 | npx ansi-to-html > test-results/test-jest.html
 
       - name: Run tests for mocha tests
-        run: npx lerna run test --scope=@testpig/mocha-tests 2>&1 | npx ansi-to-html --bg=dark > test-results/test-mocha.html
+        run: npx lerna run test --scope=@testpig/mocha-tests 2>&1 | npx ansi-to-html > test-results/test-mocha.html
 
       - name: Run tests for playwright tests
-        run: npx lerna run test --scope=@testpig/playwright-tests 2>&1 | npx ansi-to-html --bg=dark > test-results/test-playwright.html
+        run: npx lerna run test --scope=@testpig/playwright-tests 2>&1 | npx ansi-to-html > test-results/test-playwright.html
 
       - name: Run tests for vitest tests
-        run: npx lerna run test --scope=@testpig/vitest-tests 2>&1 | npx ansi-to-html --bg=dark > test-results/test-vitest.html
+        run: npx lerna run test --scope=@testpig/vitest-tests 2>&1 | npx ansi-to-html > test-results/test-vitest.html
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
