@@ -56,6 +56,7 @@ export class APIClient {
                 // Process queue and keep media with its message
                 const processedMessages = this.messageQueue.map(message => {
                     if (message.data.media?.data) {
+                        this.logger.debug('Processing media for message:', message.data.media);
                         const mediaId = message.data.rabbitMqId;
                         const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
@@ -97,21 +98,25 @@ export class APIClient {
                             }
                         };
                     }
+
+                    this.logger.debug('Processing full message after media processing:', message);
                     return message;
                 });
 
                 // Add messages JSON
                 formData.append('messages', JSON.stringify(processedMessages));
 
+                this.logger.debug('Processed messages:', processedMessages);
+
                 // Debug log what we're sending
                 this.logger.debug('Final FormData entries:');
                 for (const [key, value] of formData.entries()) {
-                    this.logger.debug('FormData entry:', {
+                    this.logger.debug('FormData entry:', JSON.stringify({
                         key,
                         value: value instanceof Blob ? 
                             `Blob (size: ${value.size}, type: ${value.type})` : 
                             'JSON data'
-                    });
+                    }));
                 }
 
                 const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
