@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
@@ -19,51 +19,50 @@ jobs:
         node-version: [16.x, 18.x, 20.x]
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        npm ci
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
 
-    - name: Install chromedriver 
-      run: |
-        npx chromedriver install
+      - name: Install dependencies
+        run: |
+          npm ci
 
-    - name: Install Playwright browsers
-      run: |
-        npx playwright install-deps 
-        npx playwright install
+      - name: Install chromedriver
+        uses: nanasess/setup-chromedriver@v2
 
-    - name: Build packages
-      run: npx lerna run build
-      
-    - name: Run tests for core package
-      run: | 
-        npx lerna run test --scope=@testpig/core --scope=@testpig/shared
- 
-    - name: Run tests for shared package
-      run: npx lerna run test --scope=@testpig/shared
+      - name: Install Playwright browsers
+        run: |
+          npx playwright install-deps 
+          npx playwright install
 
-    - name: Run tests for cypress tests
-      run: npx lerna run test --scope=@testpig/cypress-tests
+      - name: Build packages
+        run: npx lerna run build
 
-    - name: Run tests for jest tests
-      run: npx lerna run test --scope=@testpig/jest-tests
+      - name: Run tests for core package
+        run: |
+          npx lerna run test --scope=@testpig/core --scope=@testpig/shared
 
-    - name: Run tests for mocha tests
-      run: npx lerna run test --scope=@testpig/mocha-tests
+      - name: Run tests for shared package
+        run: npx lerna run test --scope=@testpig/shared
 
-    - name: Run tests for playwright tests
-      run: npx lerna run test --scope=@testpig/playwright-tests
+      - name: Run tests for cypress tests
+        run: npx lerna run test --scope=@testpig/cypress-tests
 
-    - name: Run tests for webdriverio tests
-      run: npx lerna run test --scope=@testpig/webdriverio-tests
+      - name: Run tests for jest tests
+        run: npx lerna run test --scope=@testpig/jest-tests
 
-    - name: Run tests for vitest tests
-      run: npx lerna run test --scope=@testpig/vitest-tests
+      - name: Run tests for mocha tests
+        run: npx lerna run test --scope=@testpig/mocha-tests
+
+      - name: Run tests for playwright tests
+        run: npx lerna run test --scope=@testpig/playwright-tests
+
+      - name: Run tests for webdriverio tests
+        run: npx lerna run test --scope=@testpig/webdriverio-tests
+
+      - name: Run tests for vitest tests
+        run: npx lerna run test --scope=@testpig/vitest-tests
