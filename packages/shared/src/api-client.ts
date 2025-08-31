@@ -137,8 +137,8 @@ export class APIClient {
 
                 if (!response.ok) {
                     const error = await response.text();
-                    this.logger.error('TestPig Failed Message:', JSON.stringify(this.messageQueue, null, 2));
-                    this.logger.error('Full response:', JSON.stringify(response, null, 2));
+                    this.logger.error(`TestPig Failed Message: ${JSON.stringify(this.messageQueue, null, 2)}`);
+                    this.logger.error(`Full errored response: ${ JSON.stringify(response, null, 2)}`);
                     throw new Error(`TestPig API Error: ${error || response.statusText}`);
                 }
 
