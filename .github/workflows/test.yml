@@ -12,6 +12,7 @@ jobs:
       TESTPIG_API_KEY: ${{ secrets.TESTPIG_API_KEY}}
       TESTPIG_DEBUG_LOGS: false
       TESTPIG_PROJECT_ID: ee47c
+      TESTPIG_DEBUG_LOGS: true
     runs-on: ubuntu-latest
 
     strategy:
