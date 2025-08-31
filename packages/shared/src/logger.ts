@@ -119,7 +119,12 @@ export class Logger {
     // Always log errors
     console.error(this.format(LogLevel.ERROR, message));
     if (error !== undefined) {
-      console.error(error);
+      // If it's an Error object, log the stack trace explicitly
+      if (error instanceof Error) {
+        console.error(error.stack || error.message || error);
+      } else {
+        console.error(error);
+      }
     }
   }
 }
