@@ -67,14 +67,14 @@ export class APIClient {
                             ? Buffer.from(mediaData.data)
                             : message.data.media.data;
 
-                        this.logger.debug('Processing media for message:', {
-                            messageId: mediaId,
-                            originalFileName: message.data.media.fileName,
-                            sanitizedFileName,
-                            mimeType: message.data.media.mimeType,
-                            dataSize: buffer.length,
-                            isSerializedBuffer: mediaData.type === 'Buffer'
-                        });
+                        // this.logger.debug('Processing media for message:', {
+                        //     messageId: mediaId,
+                        //     originalFileName: message.data.media.fileName,
+                        //     sanitizedFileName,
+                        //     mimeType: message.data.media.mimeType,
+                        //     dataSize: buffer.length,
+                        //     isSerializedBuffer: mediaData.type === 'Buffer'
+                        // });
 
                         // Add this specific message's media file to FormData with sanitized name
                         formData.append(
@@ -108,7 +108,7 @@ export class APIClient {
                 // Add messages JSON
                 formData.append('messages', JSON.stringify(processedMessages));
 
-                this.logger.debug('Processed messages:', processedMessages);
+                // this.logger.debug('Processed messages:', processedMessages);
 
                 // Debug log what we're sending
                 // this.logger.debug('Final FormData entries:');
