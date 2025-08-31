@@ -57,28 +57,28 @@ jobs:
 
       - name: Run tests for core package
         run: |
-          npx lerna run test --scope=@testpig/core 2>&1 | npx ansi-to-html > test-results/test-core.html
+          npx lerna run test --scope=@testpig/core 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-core.log
 
       - name: Run tests for shared package
-        run: npx lerna run test --scope=@testpig/shared 2>&1 | npx ansi-to-html > test-results/test-shared.html
+        run: npx lerna run test --scope=@testpig/shared 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-shared.log
 
       - name: Run tests for cypress tests
-        run: npx lerna run test --scope=@testpig/cypress-tests 2>&1 | npx ansi-to-html > test-results/test-cypress.html
+        run: npx lerna run test --scope=@testpig/cypress-tests 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-cypress.log
 
       - name: Run tests for jest tests
-        run: npx lerna run test --scope=@testpig/jest-tests 2>&1 | npx ansi-to-html > test-results/test-jest.html
+        run: npx lerna run test --scope=@testpig/jest-tests 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-jest.log
 
       - name: Run tests for mocha tests
-        run: npx lerna run test --scope=@testpig/mocha-tests 2>&1 | npx ansi-to-html > test-results/test-mocha.html
+        run: npx lerna run test --scope=@testpig/mocha-tests 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-mocha.log
 
       - name: Run tests for playwright tests
-        run: npx lerna run test --scope=@testpig/playwright-tests 2>&1 | npx ansi-to-html > test-results/test-playwright.html
+        run: npx lerna run test --scope=@testpig/playwright-tests 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-playwright.log
 
       - name: Run tests for vitest tests
-        run: npx lerna run test --scope=@testpig/vitest-tests 2>&1 | npx ansi-to-html > test-results/test-vitest.html
+        run: npx lerna run test --scope=@testpig/vitest-tests 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-vitest.log
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.node-version }}
           path: test-results
