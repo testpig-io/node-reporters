@@ -30,6 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
+          npm install -g ansi-to-html
 
       # - name: Setup Chrome
       #   uses: browser-actions/setup-chrome@v1
@@ -48,27 +49,36 @@ jobs:
       - name: Build packages
         run: npx lerna run build
 
+      - name: Create test results directory
+        run: mkdir -p test-results
+
       # - name: Run tests for webdriverio tests
       #   run: npx lerna run test --scope=@testpig/webdriverio-tests
 
       - name: Run tests for core package
         run: |
-          npx lerna run test --scope=@testpig/core --scope=@testpig/shared
+          npx lerna run test --scope=@testpig/core 2>&1 | ansi-to-html --bg=dark > test-results/test-core.html
 
       - name: Run tests for shared package
-        run: npx lerna run test --scope=@testpig/shared
+        run: npx lerna run test --scope=@testpig/shared 2>&1 | ansi-to-html --bg=dark > test-results/test-shared.html
 
       - name: Run tests for cypress tests
-        run: npx lerna run test --scope=@testpig/cypress-tests
+        run: npx lerna run test --scope=@testpig/cypress-tests 2>&1 | ansi-to-html --bg=dark > test-results/test-cypress.html
 
       - name: Run tests for jest tests
-        run: npx lerna run test --scope=@testpig/jest-tests
+        run: npx lerna run test --scope=@testpig/jest-tests 2>&1 | ansi-to-html --bg=dark > test-results/test-jest.html
 
       - name: Run tests for mocha tests
-        run: npx lerna run test --scope=@testpig/mocha-tests
+        run: npx lerna run test --scope=@testpig/mocha-tests 2>&1 | ansi-to-html --bg=dark > test-results/test-mocha.html
 
       - name: Run tests for playwright tests
-        run: npx lerna run test --scope=@testpig/playwright-tests
+        run: npx lerna run test --scope=@testpig/playwright-tests 2>&1 | ansi-to-html --bg=dark > test-results/test-playwright.html
 
       - name: Run tests for vitest tests
-        run: npx lerna run test --scope=@testpig/vitest-tests
+        run: npx lerna run test --scope=@testpig/vitest-tests 2>&1 | ansi-to-html --bg=dark > test-results/test-vitest.html
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
