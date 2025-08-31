@@ -13,6 +13,8 @@
     "@types/dotenv": "^8.2.3",
     "amqplib": "^0.10.3",
     "dotenv": "^16.4.7",
+    "formdata-node": "^6.0.3",
+    "undici": "^7.15.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
