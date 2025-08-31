@@ -4,7 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "composite": true,
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    "sourceMap": true
   },
   "include": ["src/**/*"],
   "references": [
