@@ -1,9 +1,23 @@
-// Mock child_process and logger before importing the module
-jest.doMock('child_process', () => ({
-  execSync: jest.fn()
+import { getGitInfo } from '../git-info';
+import { GitHubProvider, GitLabProvider, CircleProvider, JenkinsProvider, TravisProvider } from '../git-info/providers';
+
+// Mock child_process and logger
+jest.mock('child_process', () => ({
+  execSync: jest.fn((cmd: string) => {
+    if (cmd === 'git rev-parse --abbrev-ref HEAD') return 'main\n';
+    if (cmd === 'git name-rev --name-only HEAD') return 'main\n';
+    if (cmd === 'git symbolic-ref --short HEAD') return 'main\n';
+    if (cmd === 'git branch --show-current') return 'main\n';
+    if (cmd === 'git rev-parse HEAD') return 'abc123def456\n';
+    if (cmd === 'git config user.name') return 'Test User\n';
+    if (cmd === 'git config user.email') return 'test@example.com\n';
+    if (cmd === 'git log -1 --pretty=format:"%an (%ae)"') return 'Test User (test@example.com)\n';
+    if (cmd === 'git log -1 --pretty=format:"%cn (%ce)"') return 'Test User (test@example.com)\n';
+    return '';
+  })
 }));
 
-jest.doMock('../logger', () => ({
+jest.mock('../logger', () => ({
   createLogger: jest.fn(() => ({
     debug: jest.fn(),
     info: jest.fn(),
@@ -12,330 +26,481 @@ jest.doMock('../logger', () => ({
   }))
 }));
 
-describe('getGitInfo', () => {
-  const originalEnv = process.env;
-  let getGitInfo: any;
+// Environment variable cleanup
+const originalEnv = process.env;
+const knownCIEnvVars = [
+  'CI', 'CONTINUOUS_INTEGRATION',
+  'GITHUB_ACTIONS', 'GITHUB_RUN_ID', 'GITHUB_REF_NAME', 'GITHUB_SHA', 'GITHUB_REF', 'GITHUB_ACTOR', 'GITHUB_ACTOR_EMAIL', 'GITHUB_HEAD_REF', 'GITHUB_EVENT_NAME',
+  'GITLAB_CI', 'CI_PIPELINE_ID', 'CI_COMMIT_REF_NAME', 'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME', 'CI_COMMIT_SHA', 'GITLAB_COMMIT_SHA', 'GITLAB_USER_NAME', 'GITLAB_USER_EMAIL', 'CI_COMMIT_AUTHOR', 'CI_COMMIT_AUTHOR_EMAIL', 'CI_COMMIT_COMMITTER', 'CI_COMMIT_COMMITTER_EMAIL',
+  'CIRCLECI', 'CIRCLE_WORKFLOW_ID', 'CIRCLE_BUILD_NUM', 'CIRCLE_BRANCH', 'CIRCLE_SHA1', 'CIRCLE_USERNAME',
+  'JENKINS_URL', 'BUILD_NUMBER', 'BRANCH_NAME', 'GIT_BRANCH', 'GIT_COMMIT', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
+  'TRAVIS', 'TRAVIS_BUILD_ID', 'TRAVIS_BRANCH', 'TRAVIS_PULL_REQUEST_BRANCH', 'TRAVIS_COMMIT', 'TRAVIS_COMMIT_AUTHOR', 'TRAVIS_COMMIT_AUTHOR_EMAIL',
+  'BUILDKITE', 'BUILDKITE_BUILD_ID', 'BUILDKITE_BRANCH', 'BUILDKITE_COMMIT', 'BUILDKITE_BUILD_AUTHOR', 'BUILDKITE_BUILD_AUTHOR_EMAIL',
+  'APPVEYOR', 'APPVEYOR_BUILD_ID', 'APPVEYOR_REPO_BRANCH', 'APPVEYOR_REPO_COMMIT', 'APPVEYOR_REPO_COMMIT_AUTHOR', 'APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL',
+  'TF_BUILD', 'BUILD_BUILDID', 'BUILD_SOURCEBRANCHNAME', 'BUILD_SOURCEVERSION', 'BUILD_REQUESTEDFOR', 'BUILD_REQUESTEDFOREMAIL',
+  'BITBUCKET_BUILD_NUMBER', 'BITBUCKET_BRANCH', 'BITBUCKET_COMMIT', 'BITBUCKET_REPO_OWNER', 'BITBUCKET_REPO_SLUG',
+  'DRONE', 'DRONE_BUILD_NUMBER', 'DRONE_BRANCH', 'DRONE_COMMIT', 'DRONE_COMMIT_AUTHOR', 'DRONE_COMMIT_AUTHOR_EMAIL',
+  'SEMAPHORE', 'SEMAPHORE_WORKFLOW_ID', 'SEMAPHORE_GIT_BRANCH', 'SEMAPHORE_GIT_SHA', 'SEMAPHORE_GIT_COMMIT_AUTHOR', 'SEMAPHORE_GIT_COMMIT_AUTHOR_EMAIL',
+  'TEAMCITY_VERSION', 'BUILD_VCS_NUMBER', 'teamcity.build.branch', 'teamcity.build.vcs.number',
+  'BAMBOO_BUILD_NUMBER', 'bamboo.repository.branch.name', 'bamboo.repository.revision.number',
+  'CI_NAME', 'CODESHIP_BUILD_ID', 'CI_BRANCH', 'CI_COMMIT_ID', 'CI_COMMITTER_NAME', 'CI_COMMITTER_EMAIL',
+  'CODEBUILD_BUILD_ID', 'CODEBUILD_SOURCE_VERSION', 'CODEBUILD_WEBHOOK_HEAD_REF',
+  'TESTPIG_DEBUG_LOGS'
+];
 
-  beforeEach(async () => {
-    // Clear all mocks
-    jest.clearAllMocks();
-    
-    // Set up execSync mock to return predictable values
-    const { execSync } = require('child_process');
-    execSync.mockImplementation((cmd: string) => {
-      if (cmd === 'git rev-parse --abbrev-ref HEAD') return 'mock-branch';
-      if (cmd === 'git rev-parse HEAD') return 'mock-commit-hash';
-      if (cmd.includes('git log -1 --pretty=format:"%an (%ae)"')) return 'Mock Author (mock@example.com)';
-      if (cmd.includes('git log -1 --pretty=format:"%cn (%ce)"')) return 'Mock Committer (mock@example.com)';
-      if (cmd.includes('git config user.name')) return 'Mock User';
-      if (cmd.includes('git config user.email')) return 'mock@example.com';
-      return '';
+beforeEach(() => {
+  // Clean environment variables for isolated tests
+  knownCIEnvVars.forEach(envVar => {
+    delete process.env[envVar];
+  });
+});
+
+afterAll(() => {
+  process.env = originalEnv;
+});
+
+describe('GitHubProvider', () => {
+  let provider: GitHubProvider;
+
+  beforeEach(() => {
+    provider = new GitHubProvider();
+  });
+
+  describe('detection', () => {
+    it('should detect GitHub Actions when GITHUB_ACTIONS is set', () => {
+      process.env.GITHUB_ACTIONS = 'true';
+      expect(provider.detect()).toBe(true);
     });
-    
-    // Import the module after mocking
-    const gitInfoModule = await import('../git-info');
-    getGitInfo = gitInfoModule.getGitInfo;
-    
-    // Reset environment variables
-    process.env = { ...originalEnv };
-    
-    // Clear ALL CI-related environment variables comprehensively
-    const ciEnvVars = [
-      // Generic CI variables
-      'CI', 'BUILD_ID', 'BUILD_NUMBER', 'TESTPIG_DEBUG_LOGS',
-      
-      // GitHub Actions
-      'GITHUB_ACTIONS', 'GITHUB_RUN_ID', 'GITHUB_REF_NAME', 'GITHUB_REF', 'GITHUB_SHA', 
-      'GITHUB_ACTOR', 'GITHUB_HEAD_REF', 'GITHUB_ACTOR_EMAIL',
-      
-      // GitLab CI
-      'GITLAB_CI', 'CI_PIPELINE_ID', 'GITLAB_BRANCH', 'GITLAB_COMMIT_SHA', 'CI_COMMIT_REF_NAME',
-      'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME', 'CI_COMMIT_SHA', 'GITLAB_USER_NAME', 'CI_COMMIT_AUTHOR',
-      'GITLAB_USER_EMAIL', 'CI_COMMIT_AUTHOR_EMAIL', 'CI_COMMIT_COMMITTER', 'CI_COMMIT_COMMITTER_EMAIL',
-      
-      // CircleCI
-      'CIRCLECI', 'CIRCLE_WORKFLOW_ID', 'CIRCLE_BUILD_NUM', 'CIRCLE_BRANCH', 'CIRCLE_SHA1', 'CIRCLE_USERNAME',
-      
-      // Travis CI
-      'TRAVIS', 'TRAVIS_BUILD_ID', 'TRAVIS_BRANCH', 'TRAVIS_PULL_REQUEST_BRANCH', 'TRAVIS_COMMIT',
-      'TRAVIS_COMMIT_AUTHOR', 'TRAVIS_COMMIT_AUTHOR_EMAIL',
-      
-      // Jenkins
-      'JENKINS_URL', 'BUILD_NUMBER', 'BRANCH_NAME', 'GIT_BRANCH', 'GIT_COMMIT', 'GIT_AUTHOR_NAME',
-      'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
-      
-      // Buildkite
-      'BUILDKITE', 'BUILDKITE_BUILD_ID', 'BUILDKITE_BRANCH', 'BUILDKITE_COMMIT', 'BUILDKITE_BUILD_CREATOR',
-      
-      // AppVeyor
-      'APPVEYOR', 'APPVEYOR_BUILD_NUMBER', 'APPVEYOR_REPO_BRANCH', 'APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH',
-      'APPVEYOR_REPO_COMMIT', 'APPVEYOR_REPO_COMMIT_AUTHOR', 'APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL',
-      
-      // Azure Pipelines
-      'AZURE_HTTP_USER_AGENT', 'BUILD_BUILDNUMBER', 'TF_BUILD', 'BUILD_SOURCEBRANCH', 'SYSTEM_PULLREQUEST_SOURCEBRANCH',
-      'BUILD_SOURCEVERSION', 'BUILD_REQUESTEDFOR', 'BUILD_REQUESTEDFOREMAIL',
-      
-      // Bitbucket
-      'BITBUCKET_BUILD_NUMBER', 'BITBUCKET_COMMIT', 'BITBUCKET_BRANCH', 'BITBUCKET_COMMIT_AUTHOR',
-      
-      // Drone CI
-      'DRONE', 'DRONE_BUILD_NUMBER', 'DRONE_BRANCH', 'DRONE_SOURCE_BRANCH', 'DRONE_COMMIT', 
-      'DRONE_COMMIT_SHA', 'DRONE_COMMIT_AUTHOR', 'DRONE_COMMIT_AUTHOR_EMAIL',
-      
-      // Semaphore CI
-      'SEMAPHORE', 'SEMAPHORE_EXECUTABLE_UUID', 'SEMAPHORE_GIT_BRANCH', 'SEMAPHORE_GIT_PR_BRANCH',
-      'SEMAPHORE_GIT_SHA', 'SEMAPHORE_GIT_AUTHOR', 'SEMAPHORE_GIT_AUTHOR_EMAIL',
-      
-      // TeamCity
-      'TEAMCITY_VERSION', 'BUILD_VCS_BRANCH', 'BUILD_VCS_NUMBER', 'BUILD_VCS_AUTHOR',
-      
-      // Bamboo
-      'bamboo_buildNumber', 'bamboo_planKey', 'bamboo_planRepository_branch', 'bamboo_planRepository_revision',
-      'bamboo_planRepository_username',
-      
-      // Codeship
-      'CI_NAME', 'CODESHIP', 'CI_BRANCH', 'CI_COMMIT_ID', 'CI_COMMITTER_NAME',
-      
-      // AWS CodeBuild
-      'CODEBUILD_BUILD_ARN', 'CODEBUILD_INITIATOR', 'CODEBUILD_WEBHOOK_HEAD_REF', 'CODEBUILD_RESOLVED_SOURCE_VERSION',
-      
-      // Generic Git variables
-      'COMMIT_ID', 'COMMIT_AUTHOR', 'COMMIT_COMMITTER', 'COMMIT_COMMITTER_EMAIL'
-    ];
-    
-    // Clear all CI environment variables
-    ciEnvVars.forEach(varName => {
-      delete process.env[varName];
+
+    it('should detect GitHub Actions when GITHUB_RUN_ID is set', () => {
+      process.env.GITHUB_RUN_ID = '123456';
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should not detect when no GitHub environment variables are set', () => {
+      expect(provider.detect()).toBe(false);
     });
   });
 
-  afterAll(() => {
-    process.env = originalEnv;
-  });
-
-  describe('CI Environment Detection', () => {
-    it('should detect GitHub Actions CI', () => {
+  describe('git info extraction', () => {
+    beforeEach(() => {
       process.env.GITHUB_ACTIONS = 'true';
-      
-      const result = getGitInfo();
-      expect(result.isCI).toBe(true);
-      expect(result.ciProvider).toBe('github');
     });
 
-    it('should detect GitLab CI', () => {
-      process.env.GITLAB_CI = 'true';
-      
-      const result = getGitInfo();
-      expect(result.isCI).toBe(true);
-      expect(result.ciProvider).toBe('gitlab');
-    });
+    it('should prioritize GITHUB_HEAD_REF for pull requests', () => {
+      process.env.GITHUB_EVENT_NAME = 'pull_request';
+      process.env.GITHUB_HEAD_REF = 'feature-branch';
+      process.env.GITHUB_REF_NAME = '139/merge';
 
-    it('should detect CircleCI', () => {
-      process.env.CIRCLECI = 'true';
-      
-      const result = getGitInfo();
-      expect(result.isCI).toBe(true);
-      expect(result.ciProvider).toBe('circle');
-    });
-
-    it('should detect Jenkins', () => {
-      process.env.BUILD_NUMBER = '67';
-      
-      const result = getGitInfo();
-      expect(result.isCI).toBe(true);
-      expect(result.ciProvider).toBe('jenkins');
-    });
-
-    it('should return unknown provider when no CI detected', () => {
-      const result = getGitInfo();
-      expect(result.isCI).toBe(false);
-      expect(result.ciProvider).toBeUndefined();
-    });
-  });
-
-  describe('CI Environment - Branch Detection', () => {
-    it('should use GITHUB_REF_NAME for GitHub Actions', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GITHUB_REF_NAME = 'main';
-      
-      const result = getGitInfo();
-      expect(result.branch).toBe('main');
-      expect(result.ciProvider).toBe('github');
-    });
-
-    it('should handle GitHub refs and convert to branch names', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GITHUB_REF = 'refs/heads/feature-branch';
-      
-      const result = getGitInfo();
+      const result = provider.getGitInfo();
       expect(result.branch).toBe('feature-branch');
-      expect(result.ciProvider).toBe('github');
     });
 
-    it('should handle GitHub pull request refs', () => {
-      process.env.GITHUB_ACTIONS = 'true';
+    it('should use GITHUB_REF_NAME for regular pushes', () => {
+      process.env.GITHUB_REF_NAME = 'main';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('main');
+    });
+
+    it('should extract branch from GITHUB_REF when REF_NAME not available', () => {
+      process.env.GITHUB_REF = 'refs/heads/feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
+    });
+
+    it('should handle pull request refs in GITHUB_REF', () => {
       process.env.GITHUB_REF = 'refs/pull/123/head';
-      
-      const result = getGitInfo();
+
+      const result = provider.getGitInfo();
       expect(result.branch).toBe('PR-123');
-      expect(result.ciProvider).toBe('github');
     });
 
-    it('should use CI_COMMIT_REF_NAME for GitLab CI', () => {
+    it('should extract commit from GITHUB_SHA', () => {
+      process.env.GITHUB_SHA = 'abc123def456';
+
+      const result = provider.getGitInfo();
+      expect(result.commit).toBe('abc123def456');
+    });
+
+    it('should extract author from GITHUB_ACTOR and email', () => {
+      process.env.GITHUB_ACTOR = 'testuser';
+      process.env.GITHUB_ACTOR_EMAIL = 'test@example.com';
+
+      const result = provider.getGitInfo();
+      expect(result.author).toBe('testuser (test@example.com)');
+    });
+
+    it('should extract author from GITHUB_ACTOR without email', () => {
+      process.env.GITHUB_ACTOR = 'testuser';
+
+      const result = provider.getGitInfo();
+      expect(result.author).toBe('testuser');
+    });
+  });
+});
+
+describe('GitLabProvider', () => {
+  let provider: GitLabProvider;
+
+  beforeEach(() => {
+    provider = new GitLabProvider();
+  });
+
+  describe('detection', () => {
+    it('should detect GitLab CI when GITLAB_CI is set', () => {
       process.env.GITLAB_CI = 'true';
-      process.env.CI_COMMIT_REF_NAME = 'develop';
-      
-      const result = getGitInfo();
-      expect(result.branch).toBe('develop');
-      expect(result.ciProvider).toBe('gitlab');
+      expect(provider.detect()).toBe(true);
     });
 
-    it('should use CIRCLE_BRANCH for CircleCI', () => {
-      process.env.CIRCLECI = 'true';
-      process.env.CIRCLE_BRANCH = 'hotfix';
-      
-      const result = getGitInfo();
-      expect(result.branch).toBe('hotfix');
-      expect(result.ciProvider).toBe('circle');
+    it('should detect GitLab CI when CI_PIPELINE_ID is set', () => {
+      process.env.CI_PIPELINE_ID = '123456';
+      expect(provider.detect()).toBe(true);
     });
 
-    it('should use BITBUCKET_BRANCH for Bitbucket Pipelines', () => {
-      process.env.BITBUCKET_BUILD_NUMBER = '123';
-      process.env.BITBUCKET_BRANCH = 'release';
-      
-      const result = getGitInfo();
-      expect(result.branch).toBe('release');
-      expect(result.ciProvider).toBe('bitbucket');
-    });
-
-    it('should use BRANCH_NAME for Jenkins', () => {
-      process.env.BUILD_NUMBER = '67';
-      process.env.BRANCH_NAME = 'jenkins-branch';
-      
-      const result = getGitInfo();
-      expect(result.branch).toBe('jenkins-branch');
-      expect(result.ciProvider).toBe('jenkins');
+    it('should not detect when no GitLab environment variables are set', () => {
+      expect(provider.detect()).toBe(false);
     });
   });
 
-  describe('CI Environment - Commit Detection', () => {
-    it('should use GITHUB_SHA for GitHub Actions', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GITHUB_SHA = 'github-commit-123';
-      
-      const result = getGitInfo();
-      expect(result.commit).toBe('github-commit-123');
-      expect(result.ciProvider).toBe('github');
-    });
-
-    it('should use CI_COMMIT_SHA for GitLab CI', () => {
+  describe('git info extraction', () => {
+    beforeEach(() => {
       process.env.GITLAB_CI = 'true';
-      process.env.CI_COMMIT_SHA = 'gitlab-commit-456';
-      
-      const result = getGitInfo();
-      expect(result.commit).toBe('gitlab-commit-456');
-      expect(result.ciProvider).toBe('gitlab');
     });
 
-    it('should use CIRCLE_SHA1 for CircleCI', () => {
+    it('should extract branch from CI_COMMIT_REF_NAME', () => {
+      process.env.CI_COMMIT_REF_NAME = 'feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
+    });
+
+    it('should extract branch from CI_MERGE_REQUEST_SOURCE_BRANCH_NAME if REF_NAME not available', () => {
+      process.env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME = 'feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
+    });
+
+    it('should extract commit from CI_COMMIT_SHA', () => {
+      process.env.CI_COMMIT_SHA = 'abc123def456';
+
+      const result = provider.getGitInfo();
+      expect(result.commit).toBe('abc123def456');
+    });
+
+    it('should extract commit from GITLAB_COMMIT_SHA if CI_COMMIT_SHA not available', () => {
+      process.env.GITLAB_COMMIT_SHA = 'abc123def456';
+
+      const result = provider.getGitInfo();
+      expect(result.commit).toBe('abc123def456');
+    });
+
+    it('should extract author from GITLAB_USER_NAME and email', () => {
+      process.env.GITLAB_USER_NAME = 'Test User';
+      process.env.GITLAB_USER_EMAIL = 'test@example.com';
+
+      const result = provider.getGitInfo();
+      expect(result.author).toBe('Test User (test@example.com)');
+    });
+
+    it('should extract committer from CI_COMMIT_COMMITTER', () => {
+      process.env.CI_COMMIT_COMMITTER = 'Committer User';
+      process.env.CI_COMMIT_COMMITTER_EMAIL = 'committer@example.com';
+
+      const result = provider.getGitInfo();
+      expect(result.committer).toBe('Committer User (committer@example.com)');
+    });
+  });
+});
+
+describe('CircleProvider', () => {
+  let provider: CircleProvider;
+
+  beforeEach(() => {
+    provider = new CircleProvider();
+  });
+
+  describe('detection', () => {
+    it('should detect CircleCI when CIRCLECI is set', () => {
       process.env.CIRCLECI = 'true';
-      process.env.CIRCLE_SHA1 = 'circle-commit-789';
-      
-      const result = getGitInfo();
-      expect(result.commit).toBe('circle-commit-789');
-      expect(result.ciProvider).toBe('circle');
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should detect CircleCI when CIRCLE_WORKFLOW_ID is set', () => {
+      process.env.CIRCLE_WORKFLOW_ID = '12345';
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should detect CircleCI when CIRCLE_BUILD_NUM is set', () => {
+      process.env.CIRCLE_BUILD_NUM = '123';
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should not detect when no CircleCI environment variables are set', () => {
+      expect(provider.detect()).toBe(false);
     });
   });
 
-  describe('CI Environment - Author Detection', () => {
-    it('should use GITHUB_ACTOR for GitHub Actions', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GITHUB_ACTOR = 'github-user';
-      
-      const result = getGitInfo();
-      expect(result.author).toBe('github-user');
-      expect(result.ciProvider).toBe('github');
+  describe('git info extraction', () => {
+    beforeEach(() => {
+      process.env.CIRCLECI = 'true';
     });
 
-    it.skip('should combine author name and email when both are available', () => {
-      process.env.GITLAB_USER_NAME = 'gitlab-user';
-      process.env.GITLAB_USER_EMAIL = 'gitlab@example.com';
-      
-      const result = getGitInfo();
-      expect(result.author).toBe('gitlab-user (gitlab@example.com)');
+    it('should extract branch from CIRCLE_BRANCH', () => {
+      process.env.CIRCLE_BRANCH = 'feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
     });
 
-    it.skip('should handle different email variable naming patterns', () => {
-      process.env.TRAVIS_COMMIT_AUTHOR = 'travis-user';
-      process.env.TRAVIS_COMMIT_AUTHOR_EMAIL = 'travis@example.com';
-      
-      const result = getGitInfo();
-      expect(result.author).toBe('travis-user (travis@example.com)');
+    it('should extract commit from CIRCLE_SHA1', () => {
+      process.env.CIRCLE_SHA1 = 'abc123def456';
+
+      const result = provider.getGitInfo();
+      expect(result.commit).toBe('abc123def456');
+    });
+
+    it('should extract author from CIRCLE_USERNAME', () => {
+      process.env.CIRCLE_USERNAME = 'testuser';
+
+      const result = provider.getGitInfo();
+      expect(result.author).toBe('testuser');
     });
   });
+});
 
-  describe('CI Environment - Committer Detection', () => {
-    it('should use GIT_COMMITTER_NAME when available in Jenkins', () => {
+describe('JenkinsProvider', () => {
+  let provider: JenkinsProvider;
+
+  beforeEach(() => {
+    provider = new JenkinsProvider();
+  });
+
+  describe('detection', () => {
+    it('should detect Jenkins when JENKINS_URL is set', () => {
+      process.env.JENKINS_URL = 'http://jenkins.example.com';
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should detect Jenkins when BUILD_NUMBER is set', () => {
       process.env.BUILD_NUMBER = '123';
-      process.env.GIT_COMMITTER_NAME = 'committer-user';
-      process.env.GIT_COMMITTER_EMAIL = 'committer@example.com';
-      
-      const result = getGitInfo();
-      expect(result.committer).toBe('committer-user (committer@example.com)');
-      expect(result.ciProvider).toBe('jenkins');
+      expect(provider.detect()).toBe(true);
     });
 
-    it('should use CI_COMMIT_COMMITTER for GitLab CI', () => {
-      process.env.GITLAB_CI = 'true';
-      process.env.CI_COMMIT_COMMITTER = 'gitlab-committer';
-      process.env.CI_COMMIT_COMMITTER_EMAIL = 'committer@gitlab.com';
-      
-      const result = getGitInfo();
-      expect(result.committer).toBe('gitlab-committer (committer@gitlab.com)');
-      expect(result.ciProvider).toBe('gitlab');
-    });
-
-    it('should fallback to generic committer when provider-specific not available', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GIT_COMMITTER_NAME = 'generic-committer';
-      process.env.GIT_COMMITTER_EMAIL = 'generic@example.com';
-      
-      const result = getGitInfo();
-      expect(result.committer).toBe('generic-committer (generic@example.com)');
-      expect(result.ciProvider).toBe('github');
+    it('should not detect when no Jenkins environment variables are set', () => {
+      expect(provider.detect()).toBe(false);
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle empty environment variables gracefully', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GITHUB_REF_NAME = '';
-      process.env.GITHUB_SHA = '';
-      
-      const result = getGitInfo();
-      // Should fallback to git commands or unknown
-      expect(result.branch).toBeDefined();
-      expect(result.commit).toBeDefined();
-      expect(result.ciProvider).toBe('github');
+  describe('git info extraction', () => {
+    beforeEach(() => {
+      process.env.JENKINS_URL = 'http://jenkins.example.com';
     });
 
-    it('should handle undefined environment variables gracefully', () => {
-      process.env.GITHUB_ACTIONS = 'true';
-      process.env.GITHUB_REF_NAME = undefined;
-      
-      const result = getGitInfo();
-      // Should fallback to git commands or unknown
-      expect(result.branch).toBeDefined();
-      expect(result.ciProvider).toBe('github');
+    it('should extract branch from BRANCH_NAME', () => {
+      process.env.BRANCH_NAME = 'feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
     });
 
-    it('should return local development when no CI provider detected', () => {
-      const result = getGitInfo();
-      expect(result.isCI).toBe(false);
-      expect(result.ciProvider).toBeUndefined();
-      // Should use git commands for local development
-      expect(result.branch).toBeDefined();
-      expect(result.commit).toBeDefined();
+    it('should extract branch from GIT_BRANCH and clean origin prefix', () => {
+      process.env.GIT_BRANCH = 'origin/feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
     });
+
+    it('should extract commit from GIT_COMMIT', () => {
+      process.env.GIT_COMMIT = 'abc123def456';
+
+      const result = provider.getGitInfo();
+      expect(result.commit).toBe('abc123def456');
+    });
+
+    it('should extract author from GIT_AUTHOR_NAME and email', () => {
+      process.env.GIT_AUTHOR_NAME = 'Test User';
+      process.env.GIT_AUTHOR_EMAIL = 'test@example.com';
+
+      const result = provider.getGitInfo();
+      expect(result.author).toBe('Test User (test@example.com)');
+    });
+
+    it('should extract committer from GIT_COMMITTER_NAME and email', () => {
+      process.env.GIT_COMMITTER_NAME = 'Committer User';
+      process.env.GIT_COMMITTER_EMAIL = 'committer@example.com';
+
+      const result = provider.getGitInfo();
+      expect(result.committer).toBe('Committer User (committer@example.com)');
+    });
+  });
+});
+
+describe('TravisProvider', () => {
+  let provider: TravisProvider;
+
+  beforeEach(() => {
+    provider = new TravisProvider();
+  });
+
+  describe('detection', () => {
+    it('should detect Travis CI when TRAVIS is set', () => {
+      process.env.TRAVIS = 'true';
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should detect Travis CI when TRAVIS_BUILD_ID is set', () => {
+      process.env.TRAVIS_BUILD_ID = '123456';
+      expect(provider.detect()).toBe(true);
+    });
+
+    it('should not detect when no Travis environment variables are set', () => {
+      expect(provider.detect()).toBe(false);
+    });
+  });
+
+  describe('git info extraction', () => {
+    beforeEach(() => {
+      process.env.TRAVIS = 'true';
+    });
+
+    it('should extract branch from TRAVIS_BRANCH', () => {
+      process.env.TRAVIS_BRANCH = 'feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
+    });
+
+    it('should extract branch from TRAVIS_PULL_REQUEST_BRANCH if BRANCH not available', () => {
+      process.env.TRAVIS_PULL_REQUEST_BRANCH = 'feature-branch';
+
+      const result = provider.getGitInfo();
+      expect(result.branch).toBe('feature-branch');
+    });
+
+    it('should extract commit from TRAVIS_COMMIT', () => {
+      process.env.TRAVIS_COMMIT = 'abc123def456';
+
+      const result = provider.getGitInfo();
+      expect(result.commit).toBe('abc123def456');
+    });
+
+    it('should extract author from TRAVIS_COMMIT_AUTHOR and email', () => {
+      process.env.TRAVIS_COMMIT_AUTHOR = 'Test User';
+      process.env.TRAVIS_COMMIT_AUTHOR_EMAIL = 'test@example.com';
+
+      const result = provider.getGitInfo();
+      expect(result.author).toBe('Test User (test@example.com)');
+    });
+  });
+});
+
+describe('getGitInfo integration', () => {
+  it('should detect GitHub Actions and return correct provider', () => {
+    process.env.GITHUB_ACTIONS = 'true';
+    process.env.GITHUB_REF_NAME = 'main';
+    process.env.GITHUB_SHA = 'abc123def456';
+    process.env.GITHUB_ACTOR = 'testuser';
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('github');
+    expect(result.branch).toBe('main');
+    expect(result.commit).toBe('abc123def456');
+    expect(result.author).toBe('testuser');
+  });
+
+  it('should detect GitLab CI and return correct provider', () => {
+    process.env.GITLAB_CI = 'true';
+    process.env.CI_COMMIT_REF_NAME = 'feature-branch';
+    process.env.CI_COMMIT_SHA = 'abc123def456';
+    process.env.GITLAB_USER_NAME = 'Test User';
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('gitlab');
+    expect(result.branch).toBe('feature-branch');
+    expect(result.commit).toBe('abc123def456');
+    expect(result.author).toBe('Test User');
+  });
+
+  it('should detect CircleCI and return correct provider', () => {
+    process.env.CIRCLECI = 'true';
+    process.env.CIRCLE_BRANCH = 'develop';
+    process.env.CIRCLE_SHA1 = 'abc123def456';
+    process.env.CIRCLE_USERNAME = 'testuser';
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('circle');
+    expect(result.branch).toBe('develop');
+    expect(result.commit).toBe('abc123def456');
+    expect(result.author).toBe('testuser');
+  });
+
+  it('should detect Jenkins and return correct provider', () => {
+    process.env.JENKINS_URL = 'http://jenkins.example.com';
+    process.env.BRANCH_NAME = 'feature-branch';
+    process.env.GIT_COMMIT = 'abc123def456';
+    process.env.GIT_AUTHOR_NAME = 'Test User';
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('jenkins');
+    expect(result.branch).toBe('feature-branch');
+    expect(result.commit).toBe('abc123def456');
+    expect(result.author).toBe('Test User');
+  });
+
+  it('should detect Travis CI and return correct provider', () => {
+    process.env.TRAVIS = 'true';
+    process.env.TRAVIS_BRANCH = 'main';
+    process.env.TRAVIS_COMMIT = 'abc123def456';
+    process.env.TRAVIS_COMMIT_AUTHOR = 'Test User';
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('travis');
+    expect(result.branch).toBe('main');
+    expect(result.commit).toBe('abc123def456');
+    expect(result.author).toBe('Test User');
+  });
+
+  it('should return local development when no CI provider detected', () => {
+    const result = getGitInfo();
+    expect(result.isCI).toBe(false);
+    expect(result.ciProvider).toBeUndefined();
+    expect(result.branch).toBe('main'); // From mocked git command
+    expect(result.commit).toBe('abc123def456'); // From mocked git command
+    expect(result.author).toBe('Test User (test@example.com)'); // From mocked git command
+    expect(result.committer).toBe('Test User (test@example.com)'); // From mocked git command
+  });
+
+  it('should fall back to git commands when CI environment variables are missing', () => {
+    process.env.GITHUB_ACTIONS = 'true';
+    // No GitHub env vars set, should fall back to git commands
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('github');
+    expect(result.branch).toBe('main'); // From mocked git command
+    expect(result.commit).toBe('abc123def456'); // From mocked git command
+    expect(result.author).toBe('Test User (test@example.com)'); // From mocked git command
+  });
+
+  it('should handle GitHub PR correctly with GITHUB_HEAD_REF priority', () => {
+    process.env.GITHUB_ACTIONS = 'true';
+    process.env.GITHUB_EVENT_NAME = 'pull_request';
+    process.env.GITHUB_HEAD_REF = 'feature-branch';
+    process.env.GITHUB_REF_NAME = '139/merge';
+    process.env.GITHUB_SHA = 'merge-commit-sha';
+
+    const result = getGitInfo();
+    expect(result.isCI).toBe(true);
+    expect(result.ciProvider).toBe('github');
+    expect(result.branch).toBe('feature-branch'); // Should use HEAD_REF, not the merge branch
+    expect(result.commit).toBe('merge-commit-sha'); // Merge commit is acceptable
   });
 });

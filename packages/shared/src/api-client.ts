@@ -39,6 +39,7 @@ export class APIClient {
     }
 
     async flushQueue(): Promise<boolean> {
+        let logMessage = '';
         if (this.messageQueue.length === 0) return true;
 
         this.logger.info(`Attempting to send ${this.messageQueue.length} messages to ${this.baseUrl}/reporter-events/batch`);
@@ -52,10 +53,14 @@ export class APIClient {
             
             try {
                 const formData = new FormData();
+                this.logger.debug(`FormData created: ${JSON.stringify(formData, null, 2)}`);
 
                 // Process queue and keep media with its message
-                const processedMessages = this.messageQueue.map(message => {
+                const processedMessages = this.messageQueue.map((message, index) => {
+                    this.logger.info(`Processing message: ${index} ${JSON.stringify(message, null, 2)}`);
+                    logMessage = `[logMessage] message: ${index} ${JSON.stringify(message, null, 2)}`;
                     if (message.data.media?.data) {
+                        this.logger.info(`Processing media > Found media data: ${index} ${JSON.stringify(message.data.media, null, 2)}`);
                         const mediaId = message.data.rabbitMqId;
                         const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
@@ -65,14 +70,16 @@ export class APIClient {
                             ? Buffer.from(mediaData.data)
                             : message.data.media.data;
 
-                        this.logger.debug('Processing media for message:', {
-                            messageId: mediaId,
-                            originalFileName: message.data.media.fileName,
-                            sanitizedFileName,
-                            mimeType: message.data.media.mimeType,
-                            dataSize: buffer.length,
-                            isSerializedBuffer: mediaData.type === 'Buffer'
-                        });
+                        this.logger.info(`Processing media > Converted buffer: ${index} ${JSON.stringify(buffer, null, 2)}`);
+
+                        // this.logger.debug('Processing media for message:', {
+                        //     messageId: mediaId,
+                        //     originalFileName: message.data.media.fileName,
+                        //     sanitizedFileName,
+                        //     mimeType: message.data.media.mimeType,
+                        //     dataSize: buffer.length,
+                        //     isSerializedBuffer: mediaData.type === 'Buffer'
+                        // });
 
                         // Add this specific message's media file to FormData with sanitized name
                         formData.append(
@@ -97,22 +104,27 @@ export class APIClient {
                             }
                         };
                     }
+
                     return message;
                 });
+
+                logMessage = `[logMessage] <NoIndex> processedMessages: ${JSON.stringify(processedMessages, null, 2)}`;
 
                 // Add messages JSON
                 formData.append('messages', JSON.stringify(processedMessages));
 
+                // this.logger.debug('Processed messages:', processedMessages);
+
                 // Debug log what we're sending
-                this.logger.debug('Final FormData entries:');
-                for (const [key, value] of formData.entries()) {
-                    this.logger.debug('FormData entry:', {
-                        key,
-                        value: value instanceof Blob ? 
-                            `Blob (size: ${value.size}, type: ${value.type})` : 
-                            'JSON data'
-                    });
-                }
+                // this.logger.debug('Final FormData entries:');
+                // for (const [key, value] of formData.entries()) {
+                //     this.logger.debug('FormData entry:', {
+                //         key,
+                //         value: value instanceof Blob ? 
+                //             `Blob (size: ${value.size}, type: ${value.type})` : 
+                //             JSON.stringify(value, null, 2)
+                //     });
+                // }
 
                 const response = await fetch(`${this.baseUrl}/reporter-events/batch`, {
                     method: 'POST',
@@ -124,11 +136,14 @@ export class APIClient {
                     signal: controller.signal
                 });
 
+                this.logger.debug(`Full response: ${JSON.stringify(response, null, 2)}`);
+
                 this.logger.info(`Response received: status=${response.status}, ok=${response.ok}`);
 
                 if (!response.ok) {
                     const error = await response.text();
-                    this.logger.error('TestPig Failed Message:', JSON.stringify(this.messageQueue, null, 2));
+                    this.logger.error(`TestPig Failed Message: ${JSON.stringify(this.messageQueue, null, 2)}`);
+                    this.logger.error(`Full errored response: ${ JSON.stringify(response, null, 2)}`);
                     throw new Error(`TestPig API Error: ${error || response.statusText}`);
                 }
 
@@ -142,7 +157,9 @@ export class APIClient {
                 this.logger.debug('Request completed or timed out');
             }
         } catch (error) {
-            this.logger.error('Failed to send test results to TestPig:', error);
+            this.logger.error(`Failed to send test results to TestPig > Error: ${error}`);
+            this.logger.error(`Failed to send test results to TestPig: ${JSON.stringify(this.messageQueue, null, 2)}`);
+            this.logger.error(`Failed to send test results to TestPig > Log Message: ${logMessage}`);
             this.logger.warn('Keeping messages in queue for potential retry');
             return false; // Return false but don't throw to avoid crashing
         }
