@@ -63,6 +63,10 @@ describe('TestEventNormalizer', () => {
     });
 
     describe('normalizeSuiteStart', () => {
+        const metaData = {
+            testType: 'e2e'
+        };
+
         const systemInfo: SystemDetails = {
             os: 'darwin',
             architecture: 'x64',
@@ -85,7 +89,7 @@ describe('TestEventNormalizer', () => {
                 fileName,
                 testCount,
                 systemInfo,
-                'e2e'
+                metaData
             );
 
             expect(result).toEqual(expect.objectContaining({
@@ -96,7 +100,7 @@ describe('TestEventNormalizer', () => {
                 rabbitMqId: suiteId,
                 title,
                 testTool: systemInfo.framework,
-                testType: 'e2e',
+                metadata: metaData,
                 testRun: expect.objectContaining({
                     title: RUN_ID
                 }),

@@ -18,10 +18,12 @@ export class CucumberHandler implements BaseHandler {
     private featureSuite: SuiteInfo | null = null;
     private currentTest: CucumberTestInfo | null = null;
     private testBodyCache: TestBodyCache;
+    private metadata: { [key: string]: any };
 
     constructor(config: TestHandlerConfig, testBodyCache: TestBodyCache) {
         this.eventHandler = new TestEventHandler(config.projectId, config.runId);
         this.testBodyCache = testBodyCache;
+        this.metadata = config.metadata || {};
     }
 
     handleRunStart(): void {
@@ -58,7 +60,7 @@ export class CucumberHandler implements BaseHandler {
                     nodeVersion: getSystemInfo().nodeVersion,
                     npmVersion: getSystemInfo().npmVersion
                 },
-                'e2e'
+                this.metadata
             );
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         } else if (suite.type === 'scenario') {

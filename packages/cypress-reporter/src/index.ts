@@ -80,15 +80,17 @@ class CypressReporter {
   private reporterOptions;
   private logger = createLogger("CypressReporter");
   private cypressConfig: any;
+  private metadata: { [key: string]: any };
 
   constructor(
     runner: any,
-    options: { reporterOptions?: CypressReporterOptions } = {}
+    options: { reporterOptions?: CypressReporterOptions & { metadata?: { [key: string]: any } } } = {}
   ) {
     this.reporterOptions = options?.reporterOptions || {};
     const projectId =
-      this.reporterOptions?.projectId || process.env.TESTPIG_PROJECT_ID;
+      this.reporterOptions?.projectId || process.env.TESTPIG_PROJECT_ID;  
     const runId = this.reporterOptions?.runId || process.env.TESTPIG_RUN_ID;
+    this.metadata = this.reporterOptions?.metadata || {};
     if (!projectId) {
       throw new Error(
         "projectId is required in reporterOptions or set in TESTPIG_PROJECT_ID environment variable"
@@ -151,7 +153,7 @@ class CypressReporter {
           nodeVersion: getSystemInfo().nodeVersion,
           npmVersion: getSystemInfo().npmVersion,
         },
-        "e2e"
+        this.metadata
       );
       this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
     });

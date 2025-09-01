@@ -10,10 +10,12 @@ export class StandardHandler implements BaseHandler {
     private currentSuite: SuiteInfo | null = null;
     private testBodyCache: TestBodyCache;
     private logger = createLogger('StandardHandler');
+    private metadata: { [key: string]: any };
 
     constructor(config: TestHandlerConfig, testBodyCache: TestBodyCache) {
         this.eventHandler = new TestEventHandler(config.projectId, config.runId);
         this.testBodyCache = testBodyCache;
+        this.metadata = config.metadata || {};
         this.logger.info(`Initialized with projectId: ${config.projectId}, runId: ${config.runId || 'not specified'}`);
     }
 
@@ -64,7 +66,7 @@ export class StandardHandler implements BaseHandler {
                 nodeVersion: getSystemInfo().nodeVersion,
                 npmVersion: getSystemInfo().npmVersion
             },
-            'e2e'
+            this.metadata
         );
 
         this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);

@@ -20,10 +20,12 @@ class VitestReporter implements Reporter {
   private testBodyCache = new TestBodyCache();
   private ctx?: any;
   private logger = createLogger('VitestReporter');
+  private metadata: { [key: string]: any };
 
-  constructor(options: { projectId: string; runId?: string }) {
+  constructor(options: { projectId: string; runId?: string; metadata?: {} }) {
     const projectId = options.projectId || process.env.TESTPIG_PROJECT_ID;
     const runId = options.runId || process.env.TESTPIG_RUN_ID;
+    this.metadata = options.metadata || {};
 
     if (!projectId) {
       throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
@@ -80,7 +82,7 @@ class VitestReporter implements Reporter {
               nodeVersion: getSystemInfo().nodeVersion,
               npmVersion: getSystemInfo().npmVersion
             },
-            'unit'
+            this.metadata
           );
           this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         }

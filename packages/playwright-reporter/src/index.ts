@@ -26,10 +26,12 @@ class PlaywrightReporter implements Reporter {
     private failureCount: number = 0;
     private suitesByProject: Map<string, SuiteInfo> = new Map();
     private logger = createLogger('PlaywrightReporter');
+    private metadata: { [key: string]: any };
 
-    constructor(options: { projectId?: string; runId?: string } = {}) {
+    constructor(options: { projectId?: string; runId?: string; metadata?: { [key: string]: any } } = {}) {
         const projectId = options.projectId || process.env.TESTPIG_PROJECT_ID;
         const runId = options.runId || process.env.TESTPIG_RUN_ID;
+        this.metadata = options.metadata || {};
 
         if (!projectId) {
             throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
@@ -78,7 +80,7 @@ class PlaywrightReporter implements Reporter {
                     nodeVersion: getSystemInfo().nodeVersion,
                     npmVersion: getSystemInfo().npmVersion
                 },
-                'e2e'
+                this.metadata
             );
 
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, suiteData);

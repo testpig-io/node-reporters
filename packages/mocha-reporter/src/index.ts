@@ -7,13 +7,14 @@ class MochaReporter extends Mocha.reporters.Spec {
     private eventHandler: TestEventHandler;
     private failureCount: number = 0;
     private logger = createLogger('MochaReporter');
+    private metadata: { [key: string]: any };
 
     constructor(runner: Mocha.Runner, options: Mocha.MochaOptions) {
         super(runner, options);
 
         const projectId = options?.reporterOptions?.projectId || process.env.TESTPIG_PROJECT_ID;
         const runId = options?.reporterOptions?.runId || process.env.TESTPIG_RUN_ID;
-
+        this.metadata = options?.reporterOptions?.metadata || {};
         if (!projectId) {
             throw new Error('projectId is required in reporterOptions or set in TESTPIG_PROJECT_ID environment variable');
         }
@@ -51,7 +52,7 @@ class MochaReporter extends Mocha.reporters.Spec {
                     nodeVersion: getSystemInfo().nodeVersion,
                     npmVersion: getSystemInfo().npmVersion
                 },
-                'unit'
+                this.metadata
             );
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         });
