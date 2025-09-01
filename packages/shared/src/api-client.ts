@@ -1,7 +1,6 @@
 import { MessageData } from './types';
 import { createLogger } from './logger';
-import { FormData } from 'formdata-node';
-import { Blob } from 'node:buffer';
+import { FormData, Blob } from './form-data-compat';
 
 export class APIClient {
     private readonly baseUrl: string;
