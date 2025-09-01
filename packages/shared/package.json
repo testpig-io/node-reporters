@@ -15,7 +15,6 @@
     "dotenv": "^16.4.7",
     "formdata-node": "^6.0.3",
     "formdata-polyfill": "^4.0.10",
-    "node-fetch": "^3.3.2",
     "undici": "^7.15.0",
     "uuid": "^9.0.1"
   },
