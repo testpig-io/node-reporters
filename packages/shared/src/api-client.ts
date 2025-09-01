@@ -14,7 +14,7 @@ export class APIClient {
         }
         this.apiKey = apiKey;
         this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-        this.logger.info(`Initialized with baseUrl: ${this.baseUrl}`);
+        this.logger.debug(`Initialized with baseUrl: ${this.baseUrl}`);
     }
 
     async publishMessage(event: string, data: MessageData): Promise<boolean> {
@@ -23,7 +23,7 @@ export class APIClient {
 
         // If we've reached batch size, flush the queue
         if (this.messageQueue.length >= this.batchSize) {
-            this.logger.info(`Batch size reached (${this.batchSize}), flushing queue...`);
+            this.logger.debug(`Batch size reached (${this.batchSize}), flushing queue...`);
             return this.flushQueue();
         }
 
@@ -57,10 +57,10 @@ export class APIClient {
 
                 // Process queue and keep media with its message
                 const processedMessages = this.messageQueue.map((message, index) => {
-                    this.logger.info(`Processing message: ${index} ${JSON.stringify(message, null, 2)}`);
+                    this.logger.debug(`Processing message: ${index} ${JSON.stringify(message, null, 2)}`);
                     logMessage = `[logMessage] message: ${index} ${JSON.stringify(message, null, 2)}`;
                     if (message.data.media?.data) {
-                        this.logger.info(`Processing media > Found media data: ${index} ${JSON.stringify(message.data.media, null, 2)}`);
+                        this.logger.debug(`Processing media > Found media data: ${index} ${JSON.stringify(message.data.media, null, 2)}`);
                         const mediaId = message.data.rabbitMqId;
                         const sanitizedFileName = this.sanitizeFileName(message.data.media.fileName);
                         
@@ -70,8 +70,9 @@ export class APIClient {
                             ? Buffer.from(mediaData.data)
                             : message.data.media.data;
 
-                        this.logger.info(`Processing media > Converted buffer: ${index} ${JSON.stringify(buffer, null, 2)}`);
+                        this.logger.debug(`Processing media > Converted buffer: ${index} ${JSON.stringify(buffer, null, 2)}`);
 
+                        // This is too verbose and causes the log in CI to not load - only will report if there is an error
                         // this.logger.debug('Processing media for message:', {
                         //     messageId: mediaId,
                         //     originalFileName: message.data.media.fileName,
@@ -115,7 +116,6 @@ export class APIClient {
 
                 // this.logger.debug('Processed messages:', processedMessages);
 
-                // Debug log what we're sending
                 // this.logger.debug('Final FormData entries:');
                 // for (const [key, value] of formData.entries()) {
                 //     this.logger.debug('FormData entry:', {
@@ -138,7 +138,7 @@ export class APIClient {
 
                 this.logger.debug(`Full response: ${JSON.stringify(response, null, 2)}`);
 
-                this.logger.info(`Response received: status=${response.status}, ok=${response.ok}`);
+                this.logger.debug(`Response received: status=${response.status}, ok=${response.ok}`);
 
                 if (!response.ok) {
                     const error = await response.text();
@@ -150,7 +150,7 @@ export class APIClient {
                 // Clear the queue after successful send
                 const oldQueueLength = this.messageQueue.length;
                 this.messageQueue = [];
-                this.logger.info(`Queue successfully cleared (${oldQueueLength} messages sent)`);
+                this.logger.debug(`Queue successfully cleared (${oldQueueLength} messages sent)`);
                 return true;
             } finally {
                 clearTimeout(timeoutId);
