@@ -1,7 +1,5 @@
 import { MessageData } from './types';
 import { createLogger } from './logger';
-import { FormData } from 'formdata-node';
-import { Blob } from 'node:buffer';
 
 export class APIClient {
     private readonly baseUrl: string;
@@ -134,7 +132,7 @@ export class APIClient {
                         'Authorization': `Bearer ${this.apiKey}`,
                         'User-Agent': 'TestPig-Reporter/1.0'
                     },
-                    body: formData as any,
+                    body: formData,
                     signal: controller.signal
                 });
 
