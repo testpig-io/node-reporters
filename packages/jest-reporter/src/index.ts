@@ -11,10 +11,12 @@ class JestReporter implements Reporter {
     private suiteMap = new Map<string, { id: string; title: string }>();
     private testBodyCache = new TestBodyCache();
     private logger = createLogger('JestReporter');
+    private metadata: { [key: string]: any };
 
-    constructor(globalConfig: Config.GlobalConfig, options: { projectId?: string; runId?: string } = {}) {
+    constructor(globalConfig: Config.GlobalConfig, options: { projectId?: string; runId?: string; metadata?: { [key: string]: any } } = {}) {
         const projectId = options?.projectId || process.env.TESTPIG_PROJECT_ID;
         const runId = options?.runId || process.env.TESTPIG_RUN_ID;
+        this.metadata = options?.metadata || {};
 
         if (!projectId) {
             throw new Error('projectId is required in reporter options or set in TESTPIG_PROJECT_ID environment variable');
@@ -53,7 +55,7 @@ class JestReporter implements Reporter {
                     nodeVersion: getSystemInfo().nodeVersion,
                     npmVersion: getSystemInfo().npmVersion
                 },
-                'unit'
+                this.metadata
             );
             this.eventHandler.queueEvent(TestEventsEnum.SUITE_START, data);
         }

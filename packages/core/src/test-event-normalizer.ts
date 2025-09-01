@@ -93,7 +93,7 @@ export class TestEventNormalizer {
     fileName: string,
     testCount: number,
     systemInfo: SystemDetails,
-    testType: "e2e" | "unit" | "integration"
+    metadata: { [key: string]: any },
   ): MessageData {
     const existingTestRun = this.testRunMap.get(
       `${this.projectId}-${this.testRunTitle}`
@@ -110,7 +110,7 @@ export class TestEventNormalizer {
       rabbitMqId: suiteId,
       title,
       testTool: systemInfo.framework,
-      testType,
+      metadata,
       testRun: {
         rabbitMqId: existingTestRun?.rabbitMqId,
         title: this.testRunTitle,

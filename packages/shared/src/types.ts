@@ -78,7 +78,6 @@ export class MessageData {
     fileName?: string;
     testCaseCount?: number;
     testTool?: string;
-    testType?: string;
     testBody?: string;
     system?: SystemDetails;
     git?: GitDetails;
@@ -86,6 +85,7 @@ export class MessageData {
     retries?: string;
     media?: MediaData;
     browser?: BrowserDetails;
+    metadata?: { [key: string]: any };
 
     constructor(event: string, data: Partial<MessageData>) {
         Object.assign(this, data);

@@ -1,6 +1,7 @@
 export interface TestHandlerConfig {
     projectId: string;
     runId?: string;
+    metadata?: { [key: string]: any };
 }
 
 export interface SuiteInfo {
