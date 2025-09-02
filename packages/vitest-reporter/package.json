@@ -1,6 +1,6 @@
 {
   "name": "@testpig/vitest-reporter",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "TestPig reporter for Vitest",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,8 +9,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@testpig/core": "^1.0.7",
-    "@testpig/shared": "^1.0.7",
+    "@testpig/core": "^1.0.8",
+    "@testpig/shared": "^1.0.8",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
