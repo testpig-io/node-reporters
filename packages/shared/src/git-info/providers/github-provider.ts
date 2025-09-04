@@ -59,9 +59,25 @@ export class GitHubProvider extends BaseCIProvider {
   }
 
   protected getAuthor(): string | null {
-    this.logger.debug(`GitHub author detection - GITHUB_ACTOR: ${this.getEnv('GITHUB_ACTOR')}, GITHUB_ACTOR_EMAIL: ${this.getEnv('GITHUB_ACTOR_EMAIL')}`);
+    this.logger.debug(`GitHub author detection - GITHUB_EVENT_NAME: ${this.getEnv('GITHUB_EVENT_NAME')}, GITHUB_ACTOR: ${this.getEnv('GITHUB_ACTOR')}, GITHUB_ACTOR_EMAIL: ${this.getEnv('GITHUB_ACTOR_EMAIL')}`);
+    
+    // For pull requests, prioritize git commit author over GitHub Actor
+    // This avoids the noreply@github.com issue when the workflow actor differs from commit author
+    if (this.getEnv('GITHUB_EVENT_NAME') === 'pull_request') {
+      this.logger.debug('Pull request detected - using git commit author instead of GitHub Actor');
+      return null; // Let git commands handle this for more accurate PR author info
+    }
+    
+    // For non-PR events (push, etc.), use GitHub Actor information
     const actor = this.getEnv('GITHUB_ACTOR');
     const email = this.getEnv('GITHUB_ACTOR_EMAIL');
+    
+    // Avoid using noreply emails when possible - let git commands provide better info
+    if (email && email.includes('noreply.github.com')) {
+      this.logger.debug('GitHub Actor has noreply email - letting git commands provide better author info');
+      return null; // Fall back to git commands for better email
+    }
+    
     const result = this.formatPersonWithEmail(actor, email);
     this.logger.debug(`GitHub author result: ${result}`);
     return result;

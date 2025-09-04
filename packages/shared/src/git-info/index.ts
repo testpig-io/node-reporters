@@ -1,5 +1,5 @@
 // Main git-info module
-import { GitInfo, CIProvider, CIProviderConfig } from './types';
+import { GitInfo, CIProvider, CIProviderConfig, CIProviderInfo } from './types';
 import { 
   getBranchFromGit, 
   getAuthorFromGit, 
@@ -46,16 +46,48 @@ function detectCIProvider(): { provider: CIProvider; detector: any } {
   return { provider: 'unknown', detector: null };
 }
 
+function getTestPigOverrides(): CIProviderInfo {
+  return {
+    branch: process.env.TESTPIG_GIT_BRANCH || null,
+    commit: process.env.TESTPIG_GIT_COMMIT || null,
+    author: formatTestPigAuthor(),
+    committer: null
+  };
+}
+
+function formatTestPigAuthor(): string | null {
+  const name = process.env.TESTPIG_GIT_AUTHOR;
+  const email = process.env.TESTPIG_GIT_EMAIL;
+  
+  if (!name) return null;
+  return email ? `${name} (${email})` : name;
+}
+
+function hasTestPigOverrides(): boolean {
+  return !!(process.env.TESTPIG_GIT_BRANCH || 
+           process.env.TESTPIG_GIT_COMMIT || 
+           process.env.TESTPIG_GIT_AUTHOR || 
+           process.env.TESTPIG_GIT_EMAIL);
+}
+
 export function getGitInfo(): GitInfo {
   logger.info('Starting git information extraction...');
   
+  // Check for TestPig environment variable overrides first
+  const testPigOverrides = getTestPigOverrides();
+  const hasOverrides = hasTestPigOverrides();
+  
+  if (hasOverrides) {
+    logger.info('TestPig environment variable overrides detected');
+    logger.debug('TestPig overrides:', testPigOverrides);
+  }
+  
   const { provider: ciProvider, detector } = detectCIProvider();
-  const isCI = ciProvider !== 'unknown';
+  const isCI = ciProvider !== 'unknown' || hasOverrides;
   
   logger.info(`Environment type: ${isCI ? 'CI' : 'Local Development'}`);
-  if (isCI) {
-    logger.info(`CI Provider: ${ciProvider}`);
-  }
+  logger.info(`CI Provider: ${ciProvider}`);
+  logger.info(`TestPig Overrides: ${hasOverrides}`);
   
   let branch: string;
   let commit: string;
@@ -63,31 +95,57 @@ export function getGitInfo(): GitInfo {
   let committer: string;
   
   if (isCI && detector) {
-    // In CI, try provider-specific environment variables first, then fallback to git commands
-    logger.debug('Extracting git info from CI environment variables...');
+    // Priority: TestPig overrides -> CI provider vars -> Git commands
+    logger.debug('Extracting git info with TestPig overrides and CI environment variables...');
     
     const providerInfo = detector.getGitInfo();
     
+    const testPigBranch = testPigOverrides.branch;
     const providerBranch = providerInfo.branch;
-    const gitBranch = providerBranch || getBranchFromGit();
+    const gitBranch = testPigBranch || providerBranch || getBranchFromGit();
     branch = gitBranch || 'unknown';
-    logger.debug(`Branch resolution: provider(${providerBranch}) -> git(${gitBranch}) -> final(${branch})`);
+    logger.debug(`Branch resolution: testpig(${testPigBranch}) -> provider(${providerBranch}) -> git(${gitBranch}) -> final(${branch})`);
     
+    const testPigCommit = testPigOverrides.commit;
     const providerCommit = providerInfo.commit;
-    const gitCommit = providerCommit || getCommitFromGit();
+    const gitCommit = testPigCommit || providerCommit || getCommitFromGit();
     commit = gitCommit || 'unknown';
-    logger.debug(`Commit resolution: provider(${providerCommit}) -> git(${gitCommit}) -> final(${commit})`);
+    logger.debug(`Commit resolution: testpig(${testPigCommit}) -> provider(${providerCommit}) -> git(${gitCommit}) -> final(${commit})`);
     
+    const testPigAuthor = testPigOverrides.author;
     const providerAuthor = providerInfo.author;
-    const gitAuthor = providerAuthor || getAuthorFromGit();
+    const gitAuthor = testPigAuthor || providerAuthor || getAuthorFromGit();
     author = gitAuthor || 'unknown';
-    logger.debug(`Author resolution: provider(${providerAuthor}) -> git(${gitAuthor}) -> final(${author})`);
+    logger.debug(`Author resolution: testpig(${testPigAuthor}) -> provider(${providerAuthor}) -> git(${gitAuthor}) -> final(${author})`);
     
     const providerCommitter = providerInfo.committer;
     const genericCommitter = providerCommitter || getGenericCommitter();
     const gitCommitter = genericCommitter || getCommitterFromGit();
     committer = gitCommitter || 'unknown';
     logger.debug(`Committer resolution: provider(${providerCommitter}) -> generic(${genericCommitter}) -> git(${gitCommitter}) -> final(${committer})`);
+  } else if (hasOverrides) {
+    // TestPig overrides with git fallback (for Docker environments without CI detection)
+    logger.debug('Extracting git info from TestPig overrides with git fallback...');
+    
+    const testPigBranch = testPigOverrides.branch;
+    const gitBranch = testPigBranch || getBranchFromGit();
+    branch = gitBranch || 'unknown';
+    logger.debug(`Branch resolution: testpig(${testPigBranch}) -> git(${gitBranch}) -> final(${branch})`);
+    
+    const testPigCommit = testPigOverrides.commit;
+    const gitCommit = testPigCommit || getCommitFromGit();
+    commit = gitCommit || 'unknown';
+    logger.debug(`Commit resolution: testpig(${testPigCommit}) -> git(${gitCommit}) -> final(${commit})`);
+    
+    const testPigAuthor = testPigOverrides.author;
+    const gitAuthor = testPigAuthor || getAuthorFromGit();
+    author = gitAuthor || 'unknown';
+    logger.debug(`Author resolution: testpig(${testPigAuthor}) -> git(${gitAuthor}) -> final(${author})`);
+    
+    const genericCommitter = getGenericCommitter();
+    const gitCommitter = genericCommitter || getCommitterFromGit();
+    committer = gitCommitter || 'unknown';
+    logger.debug(`Committer resolution: generic(${genericCommitter}) -> git(${gitCommitter}) -> final(${committer})`);
   } else {
     // Local development - use git commands
     logger.debug('Extracting git info from local git commands...');

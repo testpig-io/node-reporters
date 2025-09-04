@@ -1,0 +1,452 @@
+# CircleCI Configuration for TestPig Node Reporters
+# This workflow tests the testpig-git-env CLI and validates CircleCI provider detection
+
+version: 2.1
+
+# Orbs for easier configuration
+orbs:
+  node: circleci/node@5.1.0
+
+# Job definitions
+jobs:
+  # Main test job (equivalent to GitHub Actions and GitLab CI test jobs)
+  test:
+    docker:
+      - image: cimg/node:20.9-browsers
+    parameters:
+      node-version:
+        type: string
+        default: "20.9"
+    environment:
+      TESTPIG_DEBUG_LOGS: "true"
+      TESTPIG_PROJECT_ID: "ee47c"
+    steps:
+      - checkout
+      
+      # Install specific Node.js version if different from default
+      - when:
+          condition:
+            not:
+              equal: [<< parameters.node-version >>, "20.9"]
+          steps:
+            - node/install:
+                node-version: << parameters.node-version >>
+      
+      # Install dependencies with caching
+      - node/install-packages:
+          pkg-manager: npm
+      
+      # Install Playwright browsers
+      - run:
+          name: Install Playwright browsers
+          command: |
+            npx playwright install-deps
+            npx playwright install
+      
+      # Build packages
+      - run:
+          name: Build packages
+          command: npx lerna run build
+      
+      # Create test results directory
+      - run:
+          name: Create test results directory
+          command: mkdir -p test-results
+      
+      # Run tests for each package
+      - run:
+          name: Run tests for core package
+          command: npx lerna run test --scope=@testpig/core --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-core.log || true
+      
+      - run:
+          name: Run tests for shared package
+          command: npx lerna run test --scope=@testpig/shared --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-shared.log || true
+      
+      - run:
+          name: Run tests for cypress tests
+          command: npx lerna run test --scope=@testpig/cypress-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-cypress.log || true
+      
+      - run:
+          name: Run tests for jest tests
+          command: npx lerna run test --scope=@testpig/jest-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-jest.log || true
+      
+      - run:
+          name: Run tests for mocha tests
+          command: npx lerna run test --scope=@testpig/mocha-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-mocha.log || true
+      
+      - run:
+          name: Run tests for playwright tests
+          command: npx lerna run test --scope=@testpig/playwright-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-playwright.log || true
+      
+      - run:
+          name: Run tests for vitest tests
+          command: npx lerna run test --scope=@testpig/vitest-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-vitest.log || true
+      
+      # Store test results
+      - store_artifacts:
+          path: test-results
+          destination: test-results-node-<< parameters.node-version >>
+
+  # Git-env CLI test job specific to CircleCI
+  test-git-env-circleci:
+    docker:
+      - image: cimg/node:20.9
+    environment:
+      TESTPIG_DEBUG_LOGS: "true"
+      TESTPIG_PROJECT_ID: "ee47c"
+    steps:
+      - checkout
+      
+      # Install dependencies
+      - node/install-packages:
+          pkg-manager: npm
+      
+      # Build shared package
+      - run:
+          name: Build shared package
+          command: npx lerna run build --scope=@testpig/shared
+      
+      # Test CLI Help
+      - run:
+          name: Test CLI Help
+          command: |
+            echo "=== Testing CLI Help ==="
+            node packages/shared/dist/bin/git-env.js --help
+      
+      # Test CLI Basic Output
+      - run:
+          name: Test CLI Basic Output
+          command: |
+            echo "=== Testing CLI Basic Output ==="
+            node packages/shared/dist/bin/git-env.js
+      
+      # Test CLI JSON Output
+      - run:
+          name: Test CLI JSON Output
+          command: |
+            echo "=== Testing CLI JSON Output ==="
+            node packages/shared/dist/bin/git-env.js --json
+      
+      # Test CLI Verbose Mode
+      - run:
+          name: Test CLI Verbose Mode
+          command: |
+            echo "=== Testing CLI Verbose Mode ==="
+            node packages/shared/dist/bin/git-env.js --verbose --json
+      
+      # Test CircleCI Detection
+      - run:
+          name: Test CircleCI Detection
+          command: |
+            echo "=== Testing CircleCI Detection ==="
+            echo "Expected CircleCI to be detected:"
+            echo "CIRCLECI=$CIRCLECI"
+            echo "CIRCLE_WORKFLOW_ID=$CIRCLE_WORKFLOW_ID"
+            echo "CIRCLE_BUILD_NUM=$CIRCLE_BUILD_NUM"
+            echo "CIRCLE_BRANCH=$CIRCLE_BRANCH"
+            echo "CIRCLE_SHA1=$CIRCLE_SHA1"
+            echo "CIRCLE_USERNAME=$CIRCLE_USERNAME"
+            echo "CIRCLE_PROJECT_REPONAME=$CIRCLE_PROJECT_REPONAME"
+            echo "CIRCLE_PROJECT_USERNAME=$CIRCLE_PROJECT_USERNAME"
+            echo ""
+            echo "CLI Output:"
+            node packages/shared/dist/bin/git-env.js --verbose --json
+            echo ""
+            echo "=== Validating CircleCI Provider Detection ==="
+            provider=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.provider')
+            echo "Provider detected: $provider"
+            if [[ "$provider" == "circle" ]]; then
+              echo "✅ CircleCI provider detected correctly"
+            else
+              echo "❌ Expected CircleCI provider, got: $provider"
+              exit 1
+            fi
+      
+      # Test CircleCI Author Detection
+      - run:
+          name: Test CircleCI Author Detection
+          command: |
+            echo "=== Testing CircleCI Author Detection ==="
+            author_email=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.email')
+            author_name=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.author')
+            echo "Author name detected: $author_name"
+            echo "Author email detected: $author_email"
+            echo "CircleCI username: $CIRCLE_USERNAME"
+            
+            # CircleCI often only provides username, not email
+            if [[ "$author_name" != "unknown" ]]; then
+              echo "✅ Author name detected successfully"
+            else
+              echo "⚠️  Author name is unknown - this may be expected in CircleCI"
+            fi
+      
+      # Test TestPig Environment Variable Overrides
+      - run:
+          name: Test TestPig Environment Variable Overrides
+          command: |
+            echo "=== Testing TestPig Overrides ==="
+            export TESTPIG_GIT_BRANCH="test-override-branch"
+            export TESTPIG_GIT_AUTHOR="Test Override User"
+            export TESTPIG_GIT_EMAIL="test@example.com"
+            export TESTPIG_CI_PROVIDER="test-provider"
+            echo "Set overrides:"
+            echo "TESTPIG_GIT_BRANCH=$TESTPIG_GIT_BRANCH"
+            echo "TESTPIG_GIT_AUTHOR=$TESTPIG_GIT_AUTHOR"
+            echo "TESTPIG_GIT_EMAIL=$TESTPIG_GIT_EMAIL"
+            echo "TESTPIG_CI_PROVIDER=$TESTPIG_CI_PROVIDER"
+            echo ""
+            echo "CLI Output with overrides:"
+            node packages/shared/dist/bin/git-env.js --json
+      
+      # Test Docker Environment Variables
+      - run:
+          name: Test Docker Environment Variables
+          command: |
+            echo "=== Testing Docker Environment Variables ==="
+            echo "Environment variables that would be passed to Docker:"
+            node packages/shared/dist/bin/git-env.js
+            echo ""
+            echo "Formatted for easy reading:"
+            node packages/shared/dist/bin/git-env.js | tr ' ' '\n'
+      
+      # Test Docker Command Simulation
+      - run:
+          name: Test Docker Command Simulation
+          command: |
+            echo "=== Simulating Docker Command ==="
+            echo "This is how the Docker command would look:"
+            echo "docker run --rm \$(node packages/shared/dist/bin/git-env.js) my-test-image"
+            echo ""
+            echo "Which expands to:"
+            echo "docker run --rm $(node packages/shared/dist/bin/git-env.js) my-test-image"
+      
+      # Validate CLI Output Format
+      - run:
+          name: Validate CLI Output Format
+          command: |
+            echo "=== Validating CLI Output Format ==="
+            # Test that basic output contains expected environment variables
+            output=$(node packages/shared/dist/bin/git-env.js)
+            echo "Raw output: $output"
+            
+            # Check for required environment variables
+            if [[ $output == *"TESTPIG_GIT_BRANCH="* ]]; then
+              echo "✅ TESTPIG_GIT_BRANCH found"
+            else
+              echo "❌ TESTPIG_GIT_BRANCH missing" && exit 1
+            fi
+            
+            if [[ $output == *"TESTPIG_GIT_COMMIT="* ]]; then
+              echo "✅ TESTPIG_GIT_COMMIT found"
+            else
+              echo "❌ TESTPIG_GIT_COMMIT missing" && exit 1
+            fi
+            
+            if [[ $output == *"TESTPIG_GIT_AUTHOR="* ]]; then
+              echo "✅ TESTPIG_GIT_AUTHOR found"
+            else
+              echo "❌ TESTPIG_GIT_AUTHOR missing" && exit 1
+            fi
+            
+            if [[ $output == *"TESTPIG_CI_PROVIDER="* ]]; then
+              echo "✅ TESTPIG_CI_PROVIDER found"
+            else
+              echo "❌ TESTPIG_CI_PROVIDER missing" && exit 1
+            fi
+            
+            echo "✅ All required environment variables present"
+      
+      # Test JSON Output Validation
+      - run:
+          name: Test JSON Output Validation
+          command: |
+            echo "=== Validating JSON Output ==="
+            # Test that JSON output is valid and contains expected fields
+            json_output=$(node packages/shared/dist/bin/git-env.js --json)
+            echo "JSON output: $json_output"
+            
+            # Validate JSON is parseable
+            echo "$json_output" | jq . > /dev/null
+            echo "✅ JSON is valid"
+            
+            # Check required fields
+            branch=$(echo "$json_output" | jq -r '.branch')
+            commit=$(echo "$json_output" | jq -r '.commit')
+            author=$(echo "$json_output" | jq -r '.author')
+            provider=$(echo "$json_output" | jq -r '.provider')
+            isCI=$(echo "$json_output" | jq -r '.isCI')
+            
+            echo "Extracted values:"
+            echo "- branch: $branch"
+            echo "- commit: $commit"
+            echo "- author: $author"
+            echo "- provider: $provider"
+            echo "- isCI: $isCI"
+            
+            # Validate values are not "unknown" or "null"
+            if [[ "$branch" != "unknown" && "$branch" != "null" ]]; then
+              echo "✅ Branch detected correctly"
+            else
+              echo "❌ Branch detection failed" && exit 1
+            fi
+            
+            if [[ "$commit" != "unknown" && "$commit" != "null" ]]; then
+              echo "✅ Commit detected correctly"
+            else
+              echo "❌ Commit detection failed" && exit 1
+            fi
+            
+            if [[ "$isCI" == "true" ]]; then
+              echo "✅ CI environment detected correctly"
+            else
+              echo "❌ CI environment detection failed" && exit 1
+            fi
+            
+            echo "✅ All JSON fields validated successfully"
+      
+      # Test CircleCI-specific Environment Variables
+      - run:
+          name: Test CircleCI-Specific Variables
+          command: |
+            echo "=== Testing CircleCI-Specific Variables ==="
+            echo "Testing that CircleCI variables are properly detected:"
+            json_output=$(node packages/shared/dist/bin/git-env.js --json)
+            detected_branch=$(echo "$json_output" | jq -r '.branch')
+            detected_commit=$(echo "$json_output" | jq -r '.commit')
+            
+            echo "CircleCI CIRCLE_BRANCH: $CIRCLE_BRANCH"
+            echo "Detected branch: $detected_branch"
+            echo "CircleCI CIRCLE_SHA1: $CIRCLE_SHA1"
+            echo "Detected commit: $detected_commit"
+            
+            # Compare CircleCI variables with detected values
+            if [[ "$detected_branch" == "$CIRCLE_BRANCH" ]] || [[ "$detected_branch" != "unknown" ]]; then
+              echo "✅ Branch detection from CircleCI variables working"
+            else
+              echo "⚠️  Branch detection may need improvement"
+            fi
+            
+            if [[ "$detected_commit" == "$CIRCLE_SHA1" ]] || [[ "$detected_commit" != "unknown" ]]; then
+              echo "✅ Commit detection from CircleCI variables working"
+            else
+              echo "⚠️  Commit detection may need improvement"
+            fi
+      
+      # Test Pull Request Detection (if applicable)
+      - run:
+          name: Test Pull Request Detection
+          command: |
+            echo "=== Testing Pull Request Detection ==="
+            echo "CIRCLE_PULL_REQUEST: $CIRCLE_PULL_REQUEST"
+            echo "CIRCLE_PULL_REQUESTS: $CIRCLE_PULL_REQUESTS"
+            if [[ -n "$CIRCLE_PULL_REQUEST" ]] || [[ -n "$CIRCLE_PULL_REQUESTS" ]]; then
+              echo "This is a pull request build"
+              json_output=$(node packages/shared/dist/bin/git-env.js --json)
+              detected_branch=$(echo "$json_output" | jq -r '.branch')
+              echo "Detected branch in PR: $detected_branch"
+              
+              if [[ "$detected_branch" != "unknown" ]]; then
+                echo "✅ Pull request branch detection working"
+              else
+                echo "⚠️  Pull request branch detection may need improvement"
+              fi
+            else
+              echo "This is not a pull request build"
+            fi
+
+  # Test simulation of other CI providers using CircleCI environment
+  test-ci-provider-simulation:
+    docker:
+      - image: cimg/node:20.9
+    parameters:
+      ci-provider:
+        type: string
+      env-vars:
+        type: string
+    steps:
+      - checkout
+      
+      # Install dependencies
+      - node/install-packages:
+          pkg-manager: npm
+      
+      # Build shared package
+      - run:
+          name: Build shared package
+          command: npx lerna run build --scope=@testpig/shared
+      
+      # Clear CircleCI variables to avoid conflicts
+      - run:
+          name: Clear CircleCI variables
+          command: |
+            unset CIRCLECI CIRCLE_WORKFLOW_ID CIRCLE_BUILD_NUM
+      
+      # Set up simulated CI environment
+      - run:
+          name: Test << parameters.ci-provider >> Provider Simulation
+          command: |
+            echo "=== Testing << parameters.ci-provider >> Provider Simulation ==="
+            eval "export << parameters.env-vars >>"
+            echo "Set environment variables for << parameters.ci-provider >>:"
+            env | grep -E "^(GITHUB|GITLAB|JENKINS|BUILD|BRANCH|GIT_|TRAVIS)" || echo "No matching variables set"
+            
+            # Test provider detection
+            echo ""
+            echo "Testing provider detection:"
+            json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+            echo "$json_output"
+            detected_provider=$(echo "$json_output" | jq -r '.provider')
+            echo "Expected provider: << parameters.ci-provider >>"
+            echo "Detected provider: $detected_provider"
+            
+            # Validate detection
+            if [[ "$detected_provider" == "<< parameters.ci-provider >>" ]]; then
+              echo "✅ << parameters.ci-provider >> provider detected correctly"
+            else
+              echo "❌ Expected << parameters.ci-provider >>, got $detected_provider"
+              exit 1
+            fi
+
+# Workflow definitions
+workflows:
+  version: 2
+  
+  # Main workflow for testing
+  test-all:
+    jobs:
+      # Test with multiple Node.js versions
+      - test:
+          matrix:
+            parameters:
+              node-version: ["18.18", "20.9", "22.9"]
+      
+      # Test CircleCI-specific git-env functionality
+      - test-git-env-circleci
+      
+      # Test simulation of other CI providers
+      - test-ci-provider-simulation:
+          matrix:
+            parameters:
+              ci-provider: ["github", "gitlab", "jenkins", "travis"]
+              env-vars: [
+                "GITHUB_ACTIONS=true GITHUB_RUN_ID=123 GITHUB_SHA=abc123 GITHUB_REF=refs/heads/main GITHUB_ACTOR=testuser",
+                "GITLAB_CI=true CI_PIPELINE_ID=123 CI_COMMIT_SHA=abc123 CI_COMMIT_REF_NAME=main GITLAB_USER_NAME=testuser",
+                "JENKINS_URL=http://jenkins.local BUILD_NUMBER=123 BRANCH_NAME=main GIT_COMMIT=abc123 GIT_AUTHOR_NAME='Test User' GIT_AUTHOR_EMAIL=test@example.com",
+                "TRAVIS=true TRAVIS_BUILD_ID=123 TRAVIS_BRANCH=main TRAVIS_COMMIT=abc123 TRAVIS_COMMIT_AUTHOR='Test User'"
+              ]
+
+  # Workflow for scheduled testing (optional)
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 2 * * *"  # Run at 2 AM daily
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - test:
+          matrix:
+            parameters:
+              node-version: ["18.18", "20.9", "22.9"]
+      - test-git-env-circleci

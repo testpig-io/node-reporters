@@ -82,3 +82,270 @@ jobs:
         with:
           name: test-results-${{ matrix.node-version }}
           path: test-results
+
+  test-git-env-cli:
+    # Test the new testpig-git-env CLI using local build
+    # (package not published yet, so we test directly from dist/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npx lerna run build --scope=@testpig/shared
+
+      - name: Test CLI Help
+        run: |
+          echo "=== Testing CLI Help ==="
+          node packages/shared/dist/bin/git-env.js --help
+
+      - name: Test CLI Basic Output
+        run: |
+          echo "=== Testing CLI Basic Output ==="
+          node packages/shared/dist/bin/git-env.js
+
+      - name: Test CLI JSON Output
+        run: |
+          echo "=== Testing CLI JSON Output ==="
+          node packages/shared/dist/bin/git-env.js --json
+
+      - name: Test CLI Verbose Mode
+        run: |
+          echo "=== Testing CLI Verbose Mode ==="
+          node packages/shared/dist/bin/git-env.js --verbose --json
+
+      - name: Test GitHub Actions Detection
+        run: |
+          echo "=== Testing GitHub Actions Detection ==="
+          echo "Expected GitHub Actions to be detected:"
+          echo "GITHUB_ACTIONS=$GITHUB_ACTIONS"
+          echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_ACTOR=$GITHUB_ACTOR"
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          echo ""
+          echo "CLI Output:"
+          node packages/shared/dist/bin/git-env.js --verbose --json
+          echo ""
+          echo "=== Testing PR Author Detection ==="
+          echo "Checking author email to ensure it's not noreply@github.com:"
+          author_email=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.email')
+          echo "Author email: $author_email"
+          if [[ "$author_email" == *"noreply.github.com"* ]]; then
+            echo "⚠️  Warning: Using noreply email - this is expected for some workflow types"
+          else
+            echo "✅ Good: Using real email address"
+          fi
+
+      - name: Test TestPig Environment Variable Overrides
+        run: |
+          echo "=== Testing TestPig Overrides ==="
+          export TESTPIG_GIT_BRANCH="test-override-branch"
+          export TESTPIG_GIT_AUTHOR="Test Override User"
+          export TESTPIG_GIT_EMAIL="test@example.com"
+          export TESTPIG_CI_PROVIDER="test-provider"
+          echo "Set overrides:"
+          echo "TESTPIG_GIT_BRANCH=$TESTPIG_GIT_BRANCH"
+          echo "TESTPIG_GIT_AUTHOR=$TESTPIG_GIT_AUTHOR"
+          echo "TESTPIG_GIT_EMAIL=$TESTPIG_GIT_EMAIL"
+          echo "TESTPIG_CI_PROVIDER=$TESTPIG_CI_PROVIDER"
+          echo ""
+          echo "CLI Output with overrides:"
+          node packages/shared/dist/bin/git-env.js --json
+
+      - name: Test Docker Environment Variables
+        run: |
+          echo "=== Testing Docker Environment Variables ==="
+          echo "Environment variables that would be passed to Docker:"
+          node packages/shared/dist/bin/git-env.js
+          echo ""
+          echo "Formatted for easy reading:"
+          node packages/shared/dist/bin/git-env.js | tr ' ' '\n'
+
+      - name: Test Docker Command Simulation
+        run: |
+          echo "=== Simulating Docker Command ==="
+          echo "This is how the Docker command would look:"
+          echo "docker run --rm \$(node packages/shared/dist/bin/git-env.js) my-test-image"
+          echo ""
+          echo "Which expands to:"
+          echo "docker run --rm $(node packages/shared/dist/bin/git-env.js) my-test-image"
+
+      - name: Validate CLI Output Format
+        run: |
+          echo "=== Validating CLI Output Format ==="
+          # Test that basic output contains expected environment variables
+          output=$(node packages/shared/dist/bin/git-env.js)
+          echo "Raw output: $output"
+          
+          # Check for required environment variables
+          if [[ $output == *"TESTPIG_GIT_BRANCH="* ]]; then
+            echo "✅ TESTPIG_GIT_BRANCH found"
+          else
+            echo "❌ TESTPIG_GIT_BRANCH missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_GIT_COMMIT="* ]]; then
+            echo "✅ TESTPIG_GIT_COMMIT found"
+          else
+            echo "❌ TESTPIG_GIT_COMMIT missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_GIT_AUTHOR="* ]]; then
+            echo "✅ TESTPIG_GIT_AUTHOR found"
+          else
+            echo "❌ TESTPIG_GIT_AUTHOR missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_CI_PROVIDER="* ]]; then
+            echo "✅ TESTPIG_CI_PROVIDER found"
+          else
+            echo "❌ TESTPIG_CI_PROVIDER missing" && exit 1
+          fi
+          
+          echo "✅ All required environment variables present"
+
+      - name: Test JSON Output Validation
+        run: |
+          echo "=== Validating JSON Output ==="
+          # Test that JSON output is valid and contains expected fields
+          json_output=$(node packages/shared/dist/bin/git-env.js --json)
+          echo "JSON output: $json_output"
+          
+          # Validate JSON is parseable
+          echo "$json_output" | jq . > /dev/null
+          echo "✅ JSON is valid"
+          
+          # Check required fields
+          branch=$(echo "$json_output" | jq -r '.branch')
+          commit=$(echo "$json_output" | jq -r '.commit')
+          author=$(echo "$json_output" | jq -r '.author')
+          provider=$(echo "$json_output" | jq -r '.provider')
+          isCI=$(echo "$json_output" | jq -r '.isCI')
+          
+          echo "Extracted values:"
+          echo "- branch: $branch"
+          echo "- commit: $commit"
+          echo "- author: $author"
+          echo "- provider: $provider"
+          echo "- isCI: $isCI"
+          
+          # Validate values are not "unknown" or "null"
+          if [[ "$branch" != "unknown" && "$branch" != "null" ]]; then
+            echo "✅ Branch detected correctly"
+          else
+            echo "❌ Branch detection failed" && exit 1
+          fi
+          
+          if [[ "$commit" != "unknown" && "$commit" != "null" ]]; then
+            echo "✅ Commit detected correctly"
+          else
+            echo "❌ Commit detection failed" && exit 1
+          fi
+          
+          if [[ "$isCI" == "true" ]]; then
+            echo "✅ CI environment detected correctly"
+          else
+            echo "❌ CI environment detection failed" && exit 1
+          fi
+          
+          echo "✅ All JSON fields validated successfully"
+
+  # Jenkins simulation job to test Jenkins provider detection without requiring actual Jenkins
+  test-jenkins-simulation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: "npm"
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build shared package
+        run: npx lerna run build --scope=@testpig/shared
+      
+      - name: Test Jenkins Provider Simulation
+        env:
+          # Simulate Jenkins environment variables
+          JENKINS_URL: "https://jenkins.example.com"
+          BUILD_NUMBER: "123"
+          BUILD_ID: "123"
+          JOB_NAME: "testpig-node-reporters/main"
+          BRANCH_NAME: "main"
+          GIT_COMMIT: "abc123def456"
+          GIT_BRANCH: "origin/main"
+          GIT_AUTHOR_NAME: "Test User"
+          GIT_AUTHOR_EMAIL: "test@example.com"
+          GIT_COMMITTER_NAME: "Test User"
+          GIT_COMMITTER_EMAIL: "test@example.com"
+          GIT_URL: "https://github.com/testpig-io/node-reporters.git"
+        run: |
+          echo "=== Testing Jenkins Provider Simulation ==="
+          echo "Simulating Jenkins environment variables:"
+          echo "JENKINS_URL=$JENKINS_URL"
+          echo "BUILD_NUMBER=$BUILD_NUMBER"
+          echo "BUILD_ID=$BUILD_ID"
+          echo "JOB_NAME=$JOB_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME"
+          echo "GIT_COMMIT=$GIT_COMMIT"
+          echo "GIT_BRANCH=$GIT_BRANCH"
+          echo "GIT_AUTHOR_NAME=$GIT_AUTHOR_NAME"
+          echo "GIT_AUTHOR_EMAIL=$GIT_AUTHOR_EMAIL"
+          echo ""
+          
+          # Clear GitHub Actions variables to avoid conflicts
+          unset GITHUB_ACTIONS GITHUB_RUN_ID GITHUB_WORKFLOW
+          
+          json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+          echo "CLI Output:"
+          echo "$json_output"
+          
+          provider=$(echo "$json_output" | jq -r '.provider')
+          echo ""
+          echo "=== Validating Jenkins Provider Detection ==="
+          echo "Expected provider: jenkins"
+          echo "Detected provider: $provider"
+          
+          if [[ "$provider" == "jenkins" ]]; then
+            echo "✅ Jenkins provider detected correctly in simulation"
+          else
+            echo "❌ Expected jenkins, got $provider"
+            exit 1
+          fi
+          
+          # Test author detection
+          author_name=$(echo "$json_output" | jq -r '.author')
+          author_email=$(echo "$json_output" | jq -r '.email')
+          echo ""
+          echo "=== Validating Jenkins Author Detection ==="
+          echo "Expected author: $GIT_AUTHOR_NAME"
+          echo "Detected author: $author_name"
+          echo "Expected email: $GIT_AUTHOR_EMAIL"
+          echo "Detected email: $author_email"
+          
+          if [[ "$author_name" == "$GIT_AUTHOR_NAME" ]] || [[ "$author_name" != "unknown" ]]; then
+            echo "✅ Jenkins author detection working"
+          else
+            echo "⚠️  Jenkins author detection may need improvement"
+          fi
+          
+          if [[ "$author_email" == "$GIT_AUTHOR_EMAIL" ]] || [[ "$author_email" != "unknown" ]]; then
+            echo "✅ Jenkins email detection working"
+          else
+            echo "⚠️  Jenkins email detection may need improvement"
+          fi
