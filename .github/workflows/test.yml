@@ -84,6 +84,8 @@ jobs:
           path: test-results
 
   test-git-env-cli:
+    # Test the new testpig-git-env CLI using local build
+    # (package not published yet, so we test directly from dist/)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,22 +105,22 @@ jobs:
       - name: Test CLI Help
         run: |
           echo "=== Testing CLI Help ==="
-          npx testpig-git-env --help
+          node packages/shared/dist/bin/git-env.js --help
 
       - name: Test CLI Basic Output
         run: |
           echo "=== Testing CLI Basic Output ==="
-          npx testpig-git-env
+          node packages/shared/dist/bin/git-env.js
 
       - name: Test CLI JSON Output
         run: |
           echo "=== Testing CLI JSON Output ==="
-          npx testpig-git-env --json
+          node packages/shared/dist/bin/git-env.js --json
 
       - name: Test CLI Verbose Mode
         run: |
           echo "=== Testing CLI Verbose Mode ==="
-          npx testpig-git-env --verbose --json
+          node packages/shared/dist/bin/git-env.js --verbose --json
 
       - name: Test GitHub Actions Detection
         run: |
@@ -131,7 +133,7 @@ jobs:
           echo "GITHUB_ACTOR=$GITHUB_ACTOR"
           echo ""
           echo "CLI Output:"
-          npx testpig-git-env --verbose --json
+          node packages/shared/dist/bin/git-env.js --verbose --json
 
       - name: Test TestPig Environment Variable Overrides
         run: |
@@ -147,31 +149,31 @@ jobs:
           echo "TESTPIG_CI_PROVIDER=$TESTPIG_CI_PROVIDER"
           echo ""
           echo "CLI Output with overrides:"
-          npx testpig-git-env --json
+          node packages/shared/dist/bin/git-env.js --json
 
       - name: Test Docker Environment Variables
         run: |
           echo "=== Testing Docker Environment Variables ==="
           echo "Environment variables that would be passed to Docker:"
-          npx testpig-git-env
+          node packages/shared/dist/bin/git-env.js
           echo ""
           echo "Formatted for easy reading:"
-          npx testpig-git-env | tr ' ' '\n'
+          node packages/shared/dist/bin/git-env.js | tr ' ' '\n'
 
       - name: Test Docker Command Simulation
         run: |
           echo "=== Simulating Docker Command ==="
           echo "This is how the Docker command would look:"
-          echo "docker run --rm \$(npx testpig-git-env) my-test-image"
+          echo "docker run --rm \$(node packages/shared/dist/bin/git-env.js) my-test-image"
           echo ""
           echo "Which expands to:"
-          echo "docker run --rm $(npx testpig-git-env) my-test-image"
+          echo "docker run --rm $(node packages/shared/dist/bin/git-env.js) my-test-image"
 
       - name: Validate CLI Output Format
         run: |
           echo "=== Validating CLI Output Format ==="
           # Test that basic output contains expected environment variables
-          output=$(npx testpig-git-env)
+          output=$(node packages/shared/dist/bin/git-env.js)
           echo "Raw output: $output"
           
           # Check for required environment variables
@@ -205,7 +207,7 @@ jobs:
         run: |
           echo "=== Validating JSON Output ==="
           # Test that JSON output is valid and contains expected fields
-          json_output=$(npx testpig-git-env --json)
+          json_output=$(node packages/shared/dist/bin/git-env.js --json)
           echo "JSON output: $json_output"
           
           # Validate JSON is parseable
