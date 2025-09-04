@@ -82,3 +82,167 @@ jobs:
         with:
           name: test-results-${{ matrix.node-version }}
           path: test-results
+
+  test-git-env-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npx lerna run build --scope=@testpig/shared
+
+      - name: Test CLI Help
+        run: |
+          echo "=== Testing CLI Help ==="
+          npx testpig-git-env --help
+
+      - name: Test CLI Basic Output
+        run: |
+          echo "=== Testing CLI Basic Output ==="
+          npx testpig-git-env
+
+      - name: Test CLI JSON Output
+        run: |
+          echo "=== Testing CLI JSON Output ==="
+          npx testpig-git-env --json
+
+      - name: Test CLI Verbose Mode
+        run: |
+          echo "=== Testing CLI Verbose Mode ==="
+          npx testpig-git-env --verbose --json
+
+      - name: Test GitHub Actions Detection
+        run: |
+          echo "=== Testing GitHub Actions Detection ==="
+          echo "Expected GitHub Actions to be detected:"
+          echo "GITHUB_ACTIONS=$GITHUB_ACTIONS"
+          echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_ACTOR=$GITHUB_ACTOR"
+          echo ""
+          echo "CLI Output:"
+          npx testpig-git-env --verbose --json
+
+      - name: Test TestPig Environment Variable Overrides
+        run: |
+          echo "=== Testing TestPig Overrides ==="
+          export TESTPIG_GIT_BRANCH="test-override-branch"
+          export TESTPIG_GIT_AUTHOR="Test Override User"
+          export TESTPIG_GIT_EMAIL="test@example.com"
+          export TESTPIG_CI_PROVIDER="test-provider"
+          echo "Set overrides:"
+          echo "TESTPIG_GIT_BRANCH=$TESTPIG_GIT_BRANCH"
+          echo "TESTPIG_GIT_AUTHOR=$TESTPIG_GIT_AUTHOR"
+          echo "TESTPIG_GIT_EMAIL=$TESTPIG_GIT_EMAIL"
+          echo "TESTPIG_CI_PROVIDER=$TESTPIG_CI_PROVIDER"
+          echo ""
+          echo "CLI Output with overrides:"
+          npx testpig-git-env --json
+
+      - name: Test Docker Environment Variables
+        run: |
+          echo "=== Testing Docker Environment Variables ==="
+          echo "Environment variables that would be passed to Docker:"
+          npx testpig-git-env
+          echo ""
+          echo "Formatted for easy reading:"
+          npx testpig-git-env | tr ' ' '\n'
+
+      - name: Test Docker Command Simulation
+        run: |
+          echo "=== Simulating Docker Command ==="
+          echo "This is how the Docker command would look:"
+          echo "docker run --rm \$(npx testpig-git-env) my-test-image"
+          echo ""
+          echo "Which expands to:"
+          echo "docker run --rm $(npx testpig-git-env) my-test-image"
+
+      - name: Validate CLI Output Format
+        run: |
+          echo "=== Validating CLI Output Format ==="
+          # Test that basic output contains expected environment variables
+          output=$(npx testpig-git-env)
+          echo "Raw output: $output"
+          
+          # Check for required environment variables
+          if [[ $output == *"TESTPIG_GIT_BRANCH="* ]]; then
+            echo "✅ TESTPIG_GIT_BRANCH found"
+          else
+            echo "❌ TESTPIG_GIT_BRANCH missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_GIT_COMMIT="* ]]; then
+            echo "✅ TESTPIG_GIT_COMMIT found"
+          else
+            echo "❌ TESTPIG_GIT_COMMIT missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_GIT_AUTHOR="* ]]; then
+            echo "✅ TESTPIG_GIT_AUTHOR found"
+          else
+            echo "❌ TESTPIG_GIT_AUTHOR missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_CI_PROVIDER="* ]]; then
+            echo "✅ TESTPIG_CI_PROVIDER found"
+          else
+            echo "❌ TESTPIG_CI_PROVIDER missing" && exit 1
+          fi
+          
+          echo "✅ All required environment variables present"
+
+      - name: Test JSON Output Validation
+        run: |
+          echo "=== Validating JSON Output ==="
+          # Test that JSON output is valid and contains expected fields
+          json_output=$(npx testpig-git-env --json)
+          echo "JSON output: $json_output"
+          
+          # Validate JSON is parseable
+          echo "$json_output" | jq . > /dev/null
+          echo "✅ JSON is valid"
+          
+          # Check required fields
+          branch=$(echo "$json_output" | jq -r '.branch')
+          commit=$(echo "$json_output" | jq -r '.commit')
+          author=$(echo "$json_output" | jq -r '.author')
+          provider=$(echo "$json_output" | jq -r '.provider')
+          isCI=$(echo "$json_output" | jq -r '.isCI')
+          
+          echo "Extracted values:"
+          echo "- branch: $branch"
+          echo "- commit: $commit"
+          echo "- author: $author"
+          echo "- provider: $provider"
+          echo "- isCI: $isCI"
+          
+          # Validate values are not "unknown" or "null"
+          if [[ "$branch" != "unknown" && "$branch" != "null" ]]; then
+            echo "✅ Branch detected correctly"
+          else
+            echo "❌ Branch detection failed" && exit 1
+          fi
+          
+          if [[ "$commit" != "unknown" && "$commit" != "null" ]]; then
+            echo "✅ Commit detected correctly"
+          else
+            echo "❌ Commit detection failed" && exit 1
+          fi
+          
+          if [[ "$isCI" == "true" ]]; then
+            echo "✅ CI environment detected correctly"
+          else
+            echo "❌ CI environment detection failed" && exit 1
+          fi
+          
+          echo "✅ All JSON fields validated successfully"
