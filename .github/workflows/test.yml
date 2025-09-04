@@ -131,9 +131,20 @@ jobs:
           echo "GITHUB_SHA=$GITHUB_SHA"
           echo "GITHUB_REF=$GITHUB_REF"
           echo "GITHUB_ACTOR=$GITHUB_ACTOR"
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
           echo ""
           echo "CLI Output:"
           node packages/shared/dist/bin/git-env.js --verbose --json
+          echo ""
+          echo "=== Testing PR Author Detection ==="
+          echo "Checking author email to ensure it's not noreply@github.com:"
+          author_email=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.email')
+          echo "Author email: $author_email"
+          if [[ "$author_email" == *"noreply.github.com"* ]]; then
+            echo "⚠️  Warning: Using noreply email - this is expected for some workflow types"
+          else
+            echo "✅ Good: Using real email address"
+          fi
 
       - name: Test TestPig Environment Variable Overrides
         run: |
