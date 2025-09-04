@@ -235,6 +235,95 @@ Common causes:
 - Git not installed on host
 - CI environment variables not set properly
 
+## Understanding the Flow
+
+### Two-Layer Strategy
+
+The `testpig-git-env` CLI uses a smart two-layer approach:
+
+#### Layer 1: CI Provider Detection (Automatic)
+The CLI automatically detects your CI environment and reads standard CI variables:
+
+```bash
+# GitHub Actions (automatic):
+GITHUB_ACTIONS=true, GITHUB_SHA=abc123, GITHUB_REF=refs/heads/main
+
+# CircleCI (automatic):
+CIRCLECI=true, CIRCLE_SHA1=abc123, CIRCLE_BRANCH=main
+
+# Travis CI (automatic):
+TRAVIS=true, TRAVIS_COMMIT=abc123, TRAVIS_BRANCH=main
+```
+
+#### Layer 2: TESTPIG_* Standardization
+The CLI converts everything to standardized `TESTPIG_*` format for Docker:
+
+```bash
+# What testpig-git-env outputs for Docker:
+-e TESTPIG_GIT_BRANCH=main
+-e TESTPIG_GIT_COMMIT=abc123
+-e TESTPIG_GIT_AUTHOR="Your Name"
+-e TESTPIG_GIT_EMAIL=your@email.com
+-e TESTPIG_CI_PROVIDER=github
+```
+
+### Docker Compose Integration
+
+You have three options for docker-compose integration:
+
+#### Option A: CLI Handles Everything (Recommended)
+```yaml
+# docker-compose.yml
+services:
+  tests:
+    image: my-test-image
+    # No environment needed - CLI provides everything
+
+# Usage:
+# docker-compose run $(npx testpig-git-env) tests
+```
+
+#### Option B: Pass Through CI Variables
+```yaml
+# docker-compose.yml
+services:
+  tests:
+    image: my-test-image
+    environment:
+      # Pass through CI provider variables for automatic detection
+      - GITHUB_ACTIONS
+      - GITHUB_SHA
+      - GITHUB_REF
+      - GITHUB_ACTOR
+      # Add overrides if needed
+      - TESTPIG_GIT_AUTHOR=Custom Author
+```
+
+#### Option C: Full Override Mode
+```yaml
+# docker-compose.yml
+services:
+  tests:
+    image: my-test-image
+    environment:
+      # Completely override with custom values
+      - TESTPIG_GIT_BRANCH=custom-branch
+      - TESTPIG_GIT_COMMIT=custom-sha
+      - TESTPIG_GIT_AUTHOR=Custom Author
+      - TESTPIG_GIT_EMAIL=custom@email.com
+      - TESTPIG_CI_PROVIDER=custom-provider
+```
+
+### Key Point: No Manual TESTPIG_* Required
+
+**You don't need to manually pass TESTPIG_* variables!** The CLI:
+1. Reads your CI environment automatically
+2. Extracts git info from CI provider variables
+3. Converts to TESTPIG_* format for Docker
+4. Provides fallback to git commands if CI not detected
+
+TESTPIG_* variables are for **overrides only**, not normal operation.
+
 ## Best Practices
 
 ### 1. Use in npm scripts
