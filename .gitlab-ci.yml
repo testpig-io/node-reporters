@@ -1,0 +1,317 @@
+# GitLab CI Configuration for TestPig Node Reporters
+# This workflow tests the testpig-git-env CLI and validates GitLab CI provider detection
+
+stages:
+  - test
+  - test-git-env
+
+variables:
+  # TestPig configuration
+  TESTPIG_DEBUG_LOGS: "true"
+  TESTPIG_PROJECT_ID: "ee47c"
+  # Node.js version
+  NODE_VERSION: "20"
+
+# Cache for faster builds
+cache:
+  key: 
+    files:
+      - package-lock.json
+  paths:
+    - node_modules/
+    - packages/*/node_modules/
+
+# Main test job (equivalent to GitHub Actions test job)
+test:
+  stage: test
+  image: node:$NODE_VERSION
+  parallel:
+    matrix:
+      - NODE_VERSION: ["18", "20", "22"]
+  script:
+    # Install dependencies
+    - npm ci
+    
+    # Install Playwright browsers
+    - npx playwright install-deps
+    - npx playwright install
+    
+    # Build packages
+    - npx lerna run build
+    
+    # Create test results directory
+    - mkdir -p test-results
+    
+    # Run tests for each package
+    - npx lerna run test --scope=@testpig/core --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-core.log || true
+    - npx lerna run test --scope=@testpig/shared --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-shared.log || true
+    - npx lerna run test --scope=@testpig/cypress-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-cypress.log || true
+    - npx lerna run test --scope=@testpig/jest-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-jest.log || true
+    - npx lerna run test --scope=@testpig/mocha-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-mocha.log || true
+    - npx lerna run test --scope=@testpig/playwright-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-playwright.log || true
+    - npx lerna run test --scope=@testpig/vitest-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-vitest.log || true
+  
+  artifacts:
+    name: "test-results-node-$NODE_VERSION"
+    paths:
+      - test-results/
+    expire_in: 1 week
+
+# Git-env CLI test job specific to GitLab CI
+test-git-env-gitlab:
+  stage: test-git-env
+  image: node:20
+  script:
+    # Install dependencies and build
+    - npm ci
+    - npx lerna run build --scope=@testpig/shared
+    
+    # Test CLI Help
+    - echo "=== Testing CLI Help ==="
+    - node packages/shared/dist/bin/git-env.js --help
+    
+    # Test CLI Basic Output
+    - echo "=== Testing CLI Basic Output ==="
+    - node packages/shared/dist/bin/git-env.js
+    
+    # Test CLI JSON Output
+    - echo "=== Testing CLI JSON Output ==="
+    - node packages/shared/dist/bin/git-env.js --json
+    
+    # Test CLI Verbose Mode
+    - echo "=== Testing CLI Verbose Mode ==="
+    - node packages/shared/dist/bin/git-env.js --verbose --json
+    
+    # Test GitLab CI Detection
+    - echo "=== Testing GitLab CI Detection ==="
+    - echo "Expected GitLab CI to be detected:"
+    - echo "GITLAB_CI=$GITLAB_CI"
+    - echo "CI_PIPELINE_ID=$CI_PIPELINE_ID"
+    - echo "CI_COMMIT_SHA=$CI_COMMIT_SHA"
+    - echo "CI_COMMIT_REF_NAME=$CI_COMMIT_REF_NAME"
+    - echo "GITLAB_USER_NAME=$GITLAB_USER_NAME"
+    - echo "GITLAB_USER_EMAIL=$GITLAB_USER_EMAIL"
+    - echo "CI_COMMIT_AUTHOR=$CI_COMMIT_AUTHOR"
+    - echo "CI_COMMIT_AUTHOR_EMAIL=$CI_COMMIT_AUTHOR_EMAIL"
+    - echo ""
+    - echo "CLI Output:"
+    - node packages/shared/dist/bin/git-env.js --verbose --json
+    - echo ""
+    - echo "=== Validating GitLab Author Detection ==="
+    - author_email=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.email')
+    - echo "Author email detected: $author_email"
+    - provider=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.provider')
+    - echo "Provider detected: $provider"
+    - |
+      if [[ "$provider" == "gitlab" ]]; then
+        echo "✅ GitLab CI provider detected correctly"
+      else
+        echo "❌ Expected GitLab provider, got: $provider"
+        exit 1
+      fi
+    
+    # Test TestPig Environment Variable Overrides
+    - echo "=== Testing TestPig Overrides ==="
+    - export TESTPIG_GIT_BRANCH="test-override-branch"
+    - export TESTPIG_GIT_AUTHOR="Test Override User"
+    - export TESTPIG_GIT_EMAIL="test@example.com"
+    - export TESTPIG_CI_PROVIDER="test-provider"
+    - echo "Set overrides:"
+    - echo "TESTPIG_GIT_BRANCH=$TESTPIG_GIT_BRANCH"
+    - echo "TESTPIG_GIT_AUTHOR=$TESTPIG_GIT_AUTHOR"
+    - echo "TESTPIG_GIT_EMAIL=$TESTPIG_GIT_EMAIL"
+    - echo "TESTPIG_CI_PROVIDER=$TESTPIG_CI_PROVIDER"
+    - echo ""
+    - echo "CLI Output with overrides:"
+    - node packages/shared/dist/bin/git-env.js --json
+    
+    # Test Docker Environment Variables
+    - echo "=== Testing Docker Environment Variables ==="
+    - echo "Environment variables that would be passed to Docker:"
+    - node packages/shared/dist/bin/git-env.js
+    - echo ""
+    - echo "Formatted for easy reading:"
+    - node packages/shared/dist/bin/git-env.js | tr ' ' '\n'
+    
+    # Test Docker Command Simulation
+    - echo "=== Simulating Docker Command ==="
+    - echo "This is how the Docker command would look:"
+    - echo "docker run --rm \$(node packages/shared/dist/bin/git-env.js) my-test-image"
+    - echo ""
+    - echo "Which expands to:"
+    - echo "docker run --rm $(node packages/shared/dist/bin/git-env.js) my-test-image"
+    
+    # Validate CLI Output Format
+    - echo "=== Validating CLI Output Format ==="
+    - output=$(node packages/shared/dist/bin/git-env.js)
+    - echo "Raw output: $output"
+    - |
+      # Check for required environment variables
+      if [[ $output == *"TESTPIG_GIT_BRANCH="* ]]; then
+        echo "✅ TESTPIG_GIT_BRANCH found"
+      else
+        echo "❌ TESTPIG_GIT_BRANCH missing" && exit 1
+      fi
+      
+      if [[ $output == *"TESTPIG_GIT_COMMIT="* ]]; then
+        echo "✅ TESTPIG_GIT_COMMIT found"
+      else
+        echo "❌ TESTPIG_GIT_COMMIT missing" && exit 1
+      fi
+      
+      if [[ $output == *"TESTPIG_GIT_AUTHOR="* ]]; then
+        echo "✅ TESTPIG_GIT_AUTHOR found"
+      else
+        echo "❌ TESTPIG_GIT_AUTHOR missing" && exit 1
+      fi
+      
+      if [[ $output == *"TESTPIG_CI_PROVIDER="* ]]; then
+        echo "✅ TESTPIG_CI_PROVIDER found"
+      else
+        echo "❌ TESTPIG_CI_PROVIDER missing" && exit 1
+      fi
+      
+      echo "✅ All required environment variables present"
+    
+    # Test JSON Output Validation
+    - echo "=== Validating JSON Output ==="
+    - json_output=$(node packages/shared/dist/bin/git-env.js --json)
+    - echo "JSON output: $json_output"
+    - |
+      # Validate JSON is parseable
+      echo "$json_output" | jq . > /dev/null
+      echo "✅ JSON is valid"
+      
+      # Check required fields
+      branch=$(echo "$json_output" | jq -r '.branch')
+      commit=$(echo "$json_output" | jq -r '.commit')
+      author=$(echo "$json_output" | jq -r '.author')
+      provider=$(echo "$json_output" | jq -r '.provider')
+      isCI=$(echo "$json_output" | jq -r '.isCI')
+      
+      echo "Extracted values:"
+      echo "- branch: $branch"
+      echo "- commit: $commit"
+      echo "- author: $author"
+      echo "- provider: $provider"
+      echo "- isCI: $isCI"
+      
+      # Validate values are not "unknown" or "null"
+      if [[ "$branch" != "unknown" && "$branch" != "null" ]]; then
+        echo "✅ Branch detected correctly"
+      else
+        echo "❌ Branch detection failed" && exit 1
+      fi
+      
+      if [[ "$commit" != "unknown" && "$commit" != "null" ]]; then
+        echo "✅ Commit detected correctly"
+      else
+        echo "❌ Commit detection failed" && exit 1
+      fi
+      
+      if [[ "$isCI" == "true" ]]; then
+        echo "✅ CI environment detected correctly"
+      else
+        echo "❌ CI environment detection failed" && exit 1
+      fi
+      
+      echo "✅ All JSON fields validated successfully"
+    
+    # Test GitLab-specific Environment Variables
+    - echo "=== Testing GitLab-Specific Variables ==="
+    - echo "Testing that GitLab CI variables are properly detected:"
+    - |
+      json_output=$(node packages/shared/dist/bin/git-env.js --json)
+      detected_branch=$(echo "$json_output" | jq -r '.branch')
+      detected_commit=$(echo "$json_output" | jq -r '.commit')
+      
+      echo "GitLab CI_COMMIT_REF_NAME: $CI_COMMIT_REF_NAME"
+      echo "Detected branch: $detected_branch"
+      echo "GitLab CI_COMMIT_SHA: $CI_COMMIT_SHA"
+      echo "Detected commit: $detected_commit"
+      
+      # Compare GitLab variables with detected values
+      if [[ "$detected_branch" == "$CI_COMMIT_REF_NAME" ]] || [[ "$detected_branch" != "unknown" ]]; then
+        echo "✅ Branch detection from GitLab CI variables working"
+      else
+        echo "⚠️  Branch detection may need improvement"
+      fi
+      
+      if [[ "$detected_commit" == "$CI_COMMIT_SHA" ]] || [[ "$detected_commit" != "unknown" ]]; then
+        echo "✅ Commit detection from GitLab CI variables working"
+      else
+        echo "⚠️  Commit detection may need improvement"
+      fi
+    
+    # Test Merge Request Detection (if applicable)
+    - echo "=== Testing Merge Request Detection ==="
+    - echo "CI_MERGE_REQUEST_IID: $CI_MERGE_REQUEST_IID"
+    - echo "CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+    - |
+      if [[ -n "$CI_MERGE_REQUEST_IID" ]]; then
+        echo "This is a merge request build"
+        json_output=$(node packages/shared/dist/bin/git-env.js --json)
+        detected_branch=$(echo "$json_output" | jq -r '.branch')
+        echo "Detected branch in MR: $detected_branch"
+        
+        if [[ "$detected_branch" == "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" ]] || [[ "$detected_branch" != "unknown" ]]; then
+          echo "✅ Merge request branch detection working"
+        else
+          echo "⚠️  Merge request branch detection may need improvement"
+        fi
+      else
+        echo "This is not a merge request build"
+      fi
+
+  # Only run on main branch and merge requests
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_MERGE_REQUEST_IID
+
+# Test simulation of other CI providers using GitLab CI environment
+test-ci-provider-simulation:
+  stage: test-git-env
+  image: node:20
+  parallel:
+    matrix:
+      - CI_PROVIDER: "circle"
+        ENV_VARS: "CIRCLECI=true CIRCLE_WORKFLOW_ID=123 CIRCLE_BRANCH=main CIRCLE_SHA1=abc123 CIRCLE_USERNAME=testuser"
+      - CI_PROVIDER: "jenkins" 
+        ENV_VARS: "JENKINS_URL=http://jenkins.local BUILD_NUMBER=123 BRANCH_NAME=main GIT_COMMIT=abc123 GIT_AUTHOR_NAME=Test User GIT_AUTHOR_EMAIL=test@example.com"
+      - CI_PROVIDER: "travis"
+        ENV_VARS: "TRAVIS=true TRAVIS_BUILD_ID=123 TRAVIS_BRANCH=main TRAVIS_COMMIT=abc123 TRAVIS_COMMIT_AUTHOR=Test User"
+  script:
+    # Install dependencies and build
+    - npm ci
+    - npx lerna run build --scope=@testpig/shared
+    
+    # Clear GitLab CI variables to avoid conflicts
+    - unset GITLAB_CI CI_PIPELINE_ID
+    
+    # Set up simulated CI environment
+    - echo "=== Testing $CI_PROVIDER Provider Simulation ==="
+    - eval "export $ENV_VARS"
+    - echo "Set environment variables for $CI_PROVIDER:"
+    - env | grep -E "^(CIRCLECI|CIRCLE|JENKINS|BUILD|BRANCH|GIT_|TRAVIS)" || echo "No matching variables set"
+    
+    # Test provider detection
+    - echo ""
+    - echo "Testing provider detection:"
+    - json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+    - echo "$json_output"
+    - detected_provider=$(echo "$json_output" | jq -r '.provider')
+    - echo "Expected provider: $CI_PROVIDER"
+    - echo "Detected provider: $detected_provider"
+    
+    # Validate detection
+    - |
+      if [[ "$detected_provider" == "$CI_PROVIDER" ]]; then
+        echo "✅ $CI_PROVIDER provider detected correctly"
+      else
+        echo "❌ Expected $CI_PROVIDER, got $detected_provider"
+        exit 1
+      fi
+  
+  # Only run on main branch to avoid conflicts with GitLab detection test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

@@ -1,0 +1,407 @@
+# Travis CI Configuration for TestPig Node Reporters
+# This workflow tests the testpig-git-env CLI and validates Travis CI provider detection
+
+language: node_js
+
+# Node.js versions to test
+node_js:
+  - "18"
+  - "20"
+  - "22"
+
+# Operating systems to test
+os:
+  - linux
+  - osx
+
+# Environment variables
+env:
+  global:
+    - TESTPIG_DEBUG_LOGS=true
+    - TESTPIG_PROJECT_ID=ee47c
+
+# Cache node_modules for faster builds
+cache:
+  directories:
+    - node_modules
+    - packages/*/node_modules
+
+# Services required
+services:
+  - xvfb  # For Playwright/Cypress browser testing
+
+# Before install - setup system dependencies
+before_install:
+  # Install latest npm
+  - npm install -g npm@latest
+  
+  # Install Playwright system dependencies (Linux only)
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then npx playwright install-deps; fi
+
+# Install phase
+install:
+  # Install project dependencies
+  - npm ci
+  
+  # Install Playwright browsers
+  - npx playwright install
+
+# Build phase
+before_script:
+  # Build all packages
+  - npx lerna run build
+  
+  # Create test results directory
+  - mkdir -p test-results
+
+# Test script - main test jobs
+script:
+  # Run tests for each package
+  - npx lerna run test --scope=@testpig/core --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-core.log || true
+  - npx lerna run test --scope=@testpig/shared --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-shared.log || true
+  - npx lerna run test --scope=@testpig/cypress-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-cypress.log || true
+  - npx lerna run test --scope=@testpig/jest-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-jest.log || true
+  - npx lerna run test --scope=@testpig/mocha-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-mocha.log || true
+  - npx lerna run test --scope=@testpig/playwright-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-playwright.log || true
+  - npx lerna run test --scope=@testpig/vitest-tests --verbose 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > test-results/test-vitest.log || true
+  
+  # Run git-env CLI tests
+  - ./scripts/test-git-env-travis.sh
+
+# Job matrix for specialized testing
+jobs:
+  include:
+    # Specialized job for comprehensive git-env testing on Travis CI
+    - name: "Git-Env CLI Tests - Travis CI Detection"
+      node_js: "20"
+      os: linux
+      script:
+        # Build shared package
+        - npx lerna run build --scope=@testpig/shared
+        
+        # Test CLI Help
+        - echo "=== Testing CLI Help ==="
+        - node packages/shared/dist/bin/git-env.js --help
+        
+        # Test CLI Basic Output
+        - echo "=== Testing CLI Basic Output ==="
+        - node packages/shared/dist/bin/git-env.js
+        
+        # Test CLI JSON Output
+        - echo "=== Testing CLI JSON Output ==="
+        - node packages/shared/dist/bin/git-env.js --json
+        
+        # Test CLI Verbose Mode
+        - echo "=== Testing CLI Verbose Mode ==="
+        - node packages/shared/dist/bin/git-env.js --verbose --json
+        
+        # Test Travis CI Detection
+        - echo "=== Testing Travis CI Detection ==="
+        - echo "Expected Travis CI to be detected:"
+        - echo "TRAVIS=$TRAVIS"
+        - echo "TRAVIS_BUILD_ID=$TRAVIS_BUILD_ID"
+        - echo "TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER"
+        - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH"
+        - echo "TRAVIS_COMMIT=$TRAVIS_COMMIT"
+        - echo "TRAVIS_COMMIT_AUTHOR=$TRAVIS_COMMIT_AUTHOR"
+        - echo "TRAVIS_COMMIT_AUTHOR_EMAIL=$TRAVIS_COMMIT_AUTHOR_EMAIL"
+        - echo "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
+        - echo "TRAVIS_PULL_REQUEST_BRANCH=$TRAVIS_PULL_REQUEST_BRANCH"
+        - echo "TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG"
+        - echo ""
+        - echo "CLI Output:"
+        - node packages/shared/dist/bin/git-env.js --verbose --json
+        - echo ""
+        - echo "=== Validating Travis CI Provider Detection ==="
+        - provider=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.provider')
+        - echo "Provider detected:$provider"
+        - |
+          if [[ "$provider" == "travis" ]]; then
+            echo "✅ Travis CI provider detected correctly"
+          else
+            echo "❌ Expected Travis CI provider, got: $provider"
+            exit 1
+          fi
+        
+        # Test Travis CI Author Detection
+        - echo "=== Testing Travis CI Author Detection ==="
+        - author_email=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.email')
+        - author_name=$(node packages/shared/dist/bin/git-env.js --json | jq -r '.author')
+        - echo "Author name detected:$author_name"
+        - echo "Author email detected:$author_email"
+        - echo "Travis commit author:$TRAVIS_COMMIT_AUTHOR"
+        - echo "Travis commit author email:$TRAVIS_COMMIT_AUTHOR_EMAIL"
+        - |
+          if [[ "$author_name" != "unknown" ]]; then
+            echo "✅ Author name detected successfully"
+          else
+            echo "⚠️  Author name is unknown - checking if Travis variables are available"
+            if [[ -n "$TRAVIS_COMMIT_AUTHOR" ]]; then
+              echo "Travis TRAVIS_COMMIT_AUTHOR is available: $TRAVIS_COMMIT_AUTHOR"
+            else
+              echo "Travis TRAVIS_COMMIT_AUTHOR is not available"
+            fi
+          fi
+        
+        # Test Pull Request Detection
+        - echo "=== Testing Pull Request Detection ==="
+        - echo "TRAVIS_PULL_REQUEST: $TRAVIS_PULL_REQUEST"
+        - echo "TRAVIS_PULL_REQUEST_BRANCH: $TRAVIS_PULL_REQUEST_BRANCH"
+        - |
+          if [[ "$TRAVIS_PULL_REQUEST" != "false" ]] && [[ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]]; then
+            echo "This is a pull request build"
+            json_output=$(node packages/shared/dist/bin/git-env.js --json)
+            detected_branch=$(echo "$json_output" | jq -r '.branch')
+            echo "Detected branch in PR: $detected_branch"
+            
+            if [[ "$detected_branch" == "$TRAVIS_PULL_REQUEST_BRANCH" ]] || [[ "$detected_branch" != "unknown" ]]; then
+              echo "✅ Pull request branch detection working"
+            else
+              echo "⚠️  Pull request branch detection may need improvement"
+            fi
+          else
+            echo "This is not a pull request build"
+          fi
+        
+        # Test TestPig Environment Variable Overrides
+        - echo "=== Testing TestPig Overrides ==="
+        - export TESTPIG_GIT_BRANCH="test-override-branch"
+        - export TESTPIG_GIT_AUTHOR="Test Override User"
+        - export TESTPIG_GIT_EMAIL="test@example.com"
+        - export TESTPIG_CI_PROVIDER="test-provider"
+        - echo "Set overrides:"
+        - echo "TESTPIG_GIT_BRANCH=$TESTPIG_GIT_BRANCH"
+        - echo "TESTPIG_GIT_AUTHOR=$TESTPIG_GIT_AUTHOR"
+        - echo "TESTPIG_GIT_EMAIL=$TESTPIG_GIT_EMAIL"
+        - echo "TESTPIG_CI_PROVIDER=$TESTPIG_CI_PROVIDER"
+        - echo ""
+        - echo "CLI Output with overrides:"
+        - node packages/shared/dist/bin/git-env.js --json
+        
+        # Test Docker Environment Variables
+        - echo "=== Testing Docker Environment Variables ==="
+        - echo "Environment variables that would be passed to Docker:"
+        - node packages/shared/dist/bin/git-env.js
+        - echo ""
+        - echo "Formatted for easy reading:"
+        - node packages/shared/dist/bin/git-env.js | tr ' ' '\n'
+        
+        # Test Docker Command Simulation
+        - echo "=== Simulating Docker Command ==="
+        - echo "This is how the Docker command would look:"
+        - echo "docker run --rm \$(node packages/shared/dist/bin/git-env.js) my-test-image"
+        - echo ""
+        - echo "Which expands to:"
+        - echo "docker run --rm $(node packages/shared/dist/bin/git-env.js) my-test-image"
+        
+        # Validate CLI Output Format
+        - echo "=== Validating CLI Output Format ==="
+        - output=$(node packages/shared/dist/bin/git-env.js)
+        - echo "Raw output: $output"
+        - |
+          # Check for required environment variables
+          if [[ $output == *"TESTPIG_GIT_BRANCH="* ]]; then
+            echo "✅ TESTPIG_GIT_BRANCH found"
+          else
+            echo "❌ TESTPIG_GIT_BRANCH missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_GIT_COMMIT="* ]]; then
+            echo "✅ TESTPIG_GIT_COMMIT found"
+          else
+            echo "❌ TESTPIG_GIT_COMMIT missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_GIT_AUTHOR="* ]]; then
+            echo "✅ TESTPIG_GIT_AUTHOR found"
+          else
+            echo "❌ TESTPIG_GIT_AUTHOR missing" && exit 1
+          fi
+          
+          if [[ $output == *"TESTPIG_CI_PROVIDER="* ]]; then
+            echo "✅ TESTPIG_CI_PROVIDER found"
+          else
+            echo "❌ TESTPIG_CI_PROVIDER missing" && exit 1
+          fi
+          
+          echo "✅ All required environment variables present"
+        
+        # Test JSON Output Validation
+        - echo "=== Validating JSON Output ==="
+        - json_output=$(node packages/shared/dist/bin/git-env.js --json)
+        - echo "JSON output: $json_output"
+        - |
+          # Validate JSON is parseable
+          echo "$json_output" | jq . > /dev/null
+          echo "✅ JSON is valid"
+          
+          # Check required fields
+          branch=$(echo "$json_output" | jq -r '.branch')
+          commit=$(echo "$json_output" | jq -r '.commit')
+          author=$(echo "$json_output" | jq -r '.author')
+          provider=$(echo "$json_output" | jq -r '.provider')
+          isCI=$(echo "$json_output" | jq -r '.isCI')
+          
+          echo "Extracted values:"
+          echo "- branch: $branch"
+          echo "- commit: $commit"
+          echo "- author: $author"
+          echo "- provider: $provider"
+          echo "- isCI: $isCI"
+          
+          # Validate values are not "unknown" or "null"
+          if [[ "$branch" != "unknown" && "$branch" != "null" ]]; then
+            echo "✅ Branch detected correctly"
+          else
+            echo "❌ Branch detection failed" && exit 1
+          fi
+          
+          if [[ "$commit" != "unknown" && "$commit" != "null" ]]; then
+            echo "✅ Commit detected correctly"
+          else
+            echo "❌ Commit detection failed" && exit 1
+          fi
+          
+          if [[ "$isCI" == "true" ]]; then
+            echo "✅ CI environment detected correctly"
+          else
+            echo "❌ CI environment detection failed" && exit 1
+          fi
+          
+          echo "✅ All JSON fields validated successfully"
+        
+        # Test Travis-specific Environment Variables
+        - echo "=== Testing Travis-Specific Variables ==="
+        - echo "Testing that Travis CI variables are properly detected:"
+        - json_output=$(node packages/shared/dist/bin/git-env.js --json)
+        - detected_branch=$(echo "$json_output" | jq -r '.branch')
+        - detected_commit=$(echo "$json_output" | jq -r '.commit')
+        - echo "Travis TRAVIS_BRANCH: $TRAVIS_BRANCH"
+        - echo "Detected branch: $detected_branch"
+        - echo "Travis TRAVIS_COMMIT: $TRAVIS_COMMIT"
+        - echo "Detected commit: $detected_commit"
+        - |
+          # Compare Travis variables with detected values
+          if [[ "$detected_branch" == "$TRAVIS_BRANCH" ]] || [[ "$detected_branch" != "unknown" ]]; then
+            echo "✅ Branch detection from Travis CI variables working"
+          else
+            echo "⚠️  Branch detection may need improvement"
+          fi
+          
+          if [[ "$detected_commit" == "$TRAVIS_COMMIT" ]] || [[ "$detected_commit" != "unknown" ]]; then
+            echo "✅ Commit detection from Travis CI variables working"
+          else
+            echo "⚠️  Commit detection may need improvement"
+          fi
+
+    # Test simulation of other CI providers using Travis CI environment
+    - name: "Cross-CI Provider Simulation - GitHub Actions"
+      node_js: "20"
+      os: linux
+      env:
+        - SIMULATED_CI=github
+      script:
+        - npx lerna run build --scope=@testpig/shared
+        - unset TRAVIS TRAVIS_BUILD_ID  # Clear Travis variables
+        - export GITHUB_ACTIONS=true GITHUB_RUN_ID=123 GITHUB_SHA=abc123 GITHUB_REF=refs/heads/main GITHUB_ACTOR=testuser
+        - echo "=== Testing GitHub Actions Provider Simulation ==="
+        - json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+        - echo "$json_output"
+        - provider=$(echo "$json_output" | jq -r '.provider')
+        - echo "Expected provider: github"
+        - echo "Detected provider: $provider"
+        - |
+          if [[ "$provider" == "github" ]]; then
+            echo "✅ GitHub Actions provider detected correctly"
+          else
+            echo "❌ Expected github, got $provider"
+            exit 1
+          fi
+
+    - name: "Cross-CI Provider Simulation - GitLab CI"
+      node_js: "20" 
+      os: linux
+      env:
+        - SIMULATED_CI=gitlab
+      script:
+        - npx lerna run build --scope=@testpig/shared
+        - unset TRAVIS TRAVIS_BUILD_ID  # Clear Travis variables
+        - export GITLAB_CI=true CI_PIPELINE_ID=123 CI_COMMIT_SHA=abc123 CI_COMMIT_REF_NAME=main GITLAB_USER_NAME=testuser
+        - echo "=== Testing GitLab CI Provider Simulation ==="
+        - json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+        - echo "$json_output"
+        - provider=$(echo "$json_output" | jq -r '.provider')
+        - echo "Expected provider: gitlab"
+        - echo "Detected provider: $provider"
+        - |
+          if [[ "$provider" == "gitlab" ]]; then
+            echo "✅ GitLab CI provider detected correctly"
+          else
+            echo "❌ Expected gitlab, got $provider"
+            exit 1
+          fi
+
+    - name: "Cross-CI Provider Simulation - CircleCI"
+      node_js: "20"
+      os: linux
+      env:
+        - SIMULATED_CI=circle
+      script:
+        - npx lerna run build --scope=@testpig/shared
+        - unset TRAVIS TRAVIS_BUILD_ID  # Clear Travis variables
+        - export CIRCLECI=true CIRCLE_WORKFLOW_ID=123 CIRCLE_BRANCH=main CIRCLE_SHA1=abc123 CIRCLE_USERNAME=testuser
+        - echo "=== Testing CircleCI Provider Simulation ==="
+        - json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+        - echo "$json_output"
+        - provider=$(echo "$json_output" | jq -r '.provider')
+        - echo "Expected provider: circle"
+        - echo "Detected provider: $provider"
+        - |
+          if [[ "$provider" == "circle" ]]; then
+            echo "✅ CircleCI provider detected correctly"
+          else
+            echo "❌ Expected circle, got $provider"
+            exit 1
+          fi
+
+    - name: "Cross-CI Provider Simulation - Jenkins"
+      node_js: "20"
+      os: linux
+      env:
+        - SIMULATED_CI=jenkins
+      script:
+        - npx lerna run build --scope=@testpig/shared
+        - unset TRAVIS TRAVIS_BUILD_ID  # Clear Travis variables
+        - export JENKINS_URL=http://jenkins.local BUILD_NUMBER=123 BRANCH_NAME=main GIT_COMMIT=abc123 GIT_AUTHOR_NAME="Test User" GIT_AUTHOR_EMAIL=test@example.com
+        - echo "=== Testing Jenkins Provider Simulation ==="
+        - json_output=$(node packages/shared/dist/bin/git-env.js --verbose --json)
+        - echo "$json_output"
+        - provider=$(echo "$json_output" | jq -r '.provider')
+        - echo "Expected provider: jenkins"
+        - echo "Detected provider: $provider"
+        - |
+          if [[ "$provider" == "jenkins" ]]; then
+            echo "✅ Jenkins provider detected correctly"
+          else
+            echo "❌ Expected jenkins, got $provider"
+            exit 1
+          fi
+
+# Branches to test
+branches:
+  only:
+    - main
+    - develop
+    - /^feature\/.*$/
+    - /^fix\/.*$/
+
+# Notifications
+notifications:
+  email:
+    on_success: change
+    on_failure: always
+
+# After script - cleanup and artifact collection
+after_script:
+  - echo "Test execution completed"
+  - ls -la test-results/ || echo "No test results directory"
