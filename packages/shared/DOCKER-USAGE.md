@@ -1,196 +1,288 @@
-# Docker Usage Guide for TestPig
+# Docker Usage Guide for TestPig Git Environment CLI
 
-TestPig now includes a built-in CLI utility that makes running tests in Docker containers seamless. No more `unknown` values for git information!
+This guide explains how to use the `testpig-git-env` CLI to pass git information to Docker containers across all CI environments.
 
 ## Quick Start
 
-If you have **any** TestPig reporter installed, you automatically get the `testpig-git-env` command:
+The `testpig-git-env` CLI automatically detects your CI environment and provides git information in multiple formats for easy Docker integration.
+
+### Basic Usage
 
 ```bash
-# Replace your docker run command:
-docker run --rm my-test-image
+# Default Docker format
+npx testpig-git-env
+# Output: -e TESTPIG_GIT_BRANCH="main" -e TESTPIG_GIT_COMMIT="abc123" ...
 
-# With this:
+# Use with Docker
 docker run --rm $(npx testpig-git-env) my-test-image
 ```
 
-That's it! TestPig will automatically:
-- ✅ Detect your CI environment (GitHub Actions, GitLab CI, etc.)
-- ✅ Fall back to local git commands when not in CI
-- ✅ Work on Windows, macOS, and Linux
-- ✅ Provide consistent git information to your tests
+## Output Formats
 
-## How It Works
+The CLI supports multiple output formats for different use cases:
 
-The `testpig-git-env` utility:
-
-1. **Detects CI Environment**: Automatically recognizes GitHub Actions, GitLab CI, CircleCI, Jenkins, Travis CI, and more
-2. **Extracts Git Information**: Gets branch, commit, author, and email from CI variables or git commands
-3. **Outputs Docker Flags**: Provides properly formatted `-e` flags for Docker
-
-### Example Output
-
+### 1. Docker Format (Default)
 ```bash
-$ npx testpig-git-env
--e TESTPIG_GIT_BRANCH="main" -e TESTPIG_GIT_COMMIT="abc123..." -e TESTPIG_GIT_AUTHOR="John Doe" -e TESTPIG_GIT_EMAIL="john@example.com" -e TESTPIG_CI_PROVIDER="github"
+npx testpig-git-env
+# -e TESTPIG_GIT_BRANCH="main" -e TESTPIG_GIT_COMMIT="abc123" -e TESTPIG_GIT_AUTHOR="John Doe" -e TESTPIG_GIT_EMAIL="john@example.com" -e TESTPIG_CI_PROVIDER="github" -e TESTPIG_CI_IS_CI="true"
 ```
 
-## Platform Examples
+### 2. Shell Export Format
+```bash
+npx testpig-git-env --format=export
+# export TESTPIG_GIT_BRANCH="main"
+# export TESTPIG_GIT_COMMIT="abc123"
+# export TESTPIG_GIT_AUTHOR="John Doe"
+# export TESTPIG_GIT_EMAIL="john@example.com"
+# export TESTPIG_CI_PROVIDER="github"
+# export TESTPIG_CI_IS_CI="true"
+```
 
-### Local Development
+### 3. Environment File Format
+```bash
+npx testpig-git-env --format=env
+# TESTPIG_GIT_BRANCH=main
+# TESTPIG_GIT_COMMIT=abc123
+# TESTPIG_GIT_AUTHOR=John Doe
+# TESTPIG_GIT_EMAIL=john@example.com
+# TESTPIG_CI_PROVIDER=github
+# TESTPIG_CI_IS_CI=true
+```
+
+### 4. JSON Format
+```bash
+npx testpig-git-env --format=json
+# {
+#   "branch": "main",
+#   "commit": "abc123",
+#   "author": "John Doe",
+#   "email": "john@example.com",
+#   "provider": "github",
+#   "isCI": true
+# }
+```
+
+## Docker Compose Integration
+
+### Method 1: Shell Export (Recommended)
+
+Set environment variables in your shell, then run docker-compose:
 
 ```bash
-# macOS/Linux
+# Set variables in your shell
+eval "$(npx testpig-git-env --format=export)"
+
+# Run docker-compose (variables automatically inherited)
+docker compose -f docker-compose.yml --profile tests run cypress-tests
+```
+
+**One-liner version:**
+```bash
+eval "$(npx testpig-git-env --format=export)" && docker compose -f docker-compose.yml --profile tests run cypress-tests
+```
+
+### Method 2: Environment File
+
+Generate a `.env` file and use with `--env-file`:
+
+```bash
+# Generate environment file
+npx testpig-git-env --format=env > .testpig.env
+
+# Use with docker-compose
+docker compose -f docker-compose.yml --profile tests --env-file .testpig.env run cypress-tests
+```
+
+### Method 3: Direct Docker Command
+
+For simple `docker run` commands:
+
+```bash
+# Traditional approach
 docker run --rm $(npx testpig-git-env) my-test-image
 
-# Windows PowerShell
-$env_vars = npx testpig-git-env
-docker run --rm $env_vars my-test-image
-
-# Windows Command Prompt
-for /f "delims=" %i in ('npx testpig-git-env') do docker run --rm %i my-test-image
+# With custom arguments
+docker run --rm $(npx testpig-git-env) --volume ./data:/data my-test-image npm test
 ```
 
-### CI/CD Examples
+## Docker Compose Configuration
 
-#### GitHub Actions
+### Option A: No Environment Declaration (Simplest)
+
+Your `docker-compose.yml` doesn't need to declare the variables:
 
 ```yaml
-name: Test
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Run tests in Docker
-        run: |
-          docker run --rm $(npx testpig-git-env) my-test-image
+# docker-compose.yml
+services:
+  tests:
+    image: my-test-image
+    # No environment needed - variables inherited from shell
+    command: npm test
 ```
 
-#### GitLab CI
+### Option B: Explicit Declaration (Recommended)
+
+For better documentation and validation:
 
 ```yaml
-test:
-  image: docker:latest
-  services:
-    - docker:dind
-  before_script:
-    - apk add --no-cache nodejs npm
-    - npm ci
-  script:
-    - docker run --rm $(npx testpig-git-env) my-test-image
-```
-
-#### CircleCI
-
-```yaml
-version: 2.1
-jobs:
-  test:
-    docker:
-      - image: cimg/node:18
-    steps:
-      - checkout
-      - setup_remote_docker
-      - run:
-          name: Install dependencies
-          command: npm ci
-      - run:
-          name: Run Docker tests
-          command: docker run --rm $(npx testpig-git-env) my-test-image
-```
-
-### Docker Compose
-
-```yaml
-# docker-compose.test.yml
-version: '3.8'
+# docker-compose.yml
 services:
   tests:
     image: my-test-image
     environment:
-      # Set these before running docker-compose
-      - TESTPIG_GIT_BRANCH=${TESTPIG_GIT_BRANCH}
-      - TESTPIG_GIT_COMMIT=${TESTPIG_GIT_COMMIT}
-      - TESTPIG_GIT_AUTHOR=${TESTPIG_GIT_AUTHOR}
-      - TESTPIG_GIT_EMAIL=${TESTPIG_GIT_EMAIL}
-      - TESTPIG_CI_PROVIDER=${TESTPIG_CI_PROVIDER}
+      # TestPig git information (inherited from shell)
+      - TESTPIG_GIT_BRANCH
+      - TESTPIG_GIT_COMMIT
+      - TESTPIG_GIT_AUTHOR
+      - TESTPIG_GIT_EMAIL
+      - TESTPIG_CI_PROVIDER
+      - TESTPIG_CI_IS_CI
+      # Your existing environment variables
+      - NODE_ENV=test
+      - API_URL=http://localhost:3000
+    command: npm test
 ```
 
-```bash
-# Set variables and run
-eval $(npx testpig-git-env --export)  # Future feature
-docker-compose -f docker-compose.test.yml up
-```
+## Environment Variables
 
-## Advanced Usage
-
-### Debug Mode
-
-See exactly what's being detected:
-
-```bash
-npx testpig-git-env --verbose --json
-```
-
-Example output:
-```json
-{
-  "branch": "feature/docker-support",
-  "commit": "abc123def456789...",
-  "author": "John Doe",
-  "email": "john@example.com",
-  "provider": "github",
-  "isCI": true
-}
-```
-
-### Manual Overrides
-
-Override specific values when needed:
-
-```bash
-# Override just the branch
-export TESTPIG_GIT_BRANCH="custom-branch"
-docker run --rm $(npx testpig-git-env) my-test-image
-
-# Override multiple values
-export TESTPIG_GIT_BRANCH="hotfix"
-export TESTPIG_GIT_AUTHOR="Release Bot"
-docker run --rm $(npx testpig-git-env) my-test-image
-```
-
-### Available Override Variables
+The CLI provides these standardized environment variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `TESTPIG_GIT_BRANCH` | Git branch name | `main`, `feature/auth` |
-| `TESTPIG_GIT_COMMIT` | Full commit SHA | `abc123def456789...` |
-| `TESTPIG_GIT_AUTHOR` | Author name | `John Doe` |
-| `TESTPIG_GIT_EMAIL` | Author email | `john@example.com` |
-| `TESTPIG_CI_PROVIDER` | CI provider name | `github`, `gitlab`, `local` |
+| `TESTPIG_GIT_BRANCH` | Current git branch | `main`, `feature/auth` |
+| `TESTPIG_GIT_COMMIT` | Current git commit SHA | `abc123def456...` |
+| `TESTPIG_GIT_AUTHOR` | Git commit author name | `John Doe` |
+| `TESTPIG_GIT_EMAIL` | Git commit author email | `john@example.com` |
+| `TESTPIG_CI_PROVIDER` | CI provider name | `github`, `gitlab`, `circle`, etc. |
+| `TESTPIG_CI_IS_CI` | Whether running in CI | `true`, `false` |
 
-## Supported CI Providers
+## CI Provider Support
 
-The utility automatically detects these CI environments:
+The CLI automatically detects and supports:
 
-- **GitHub Actions** (`GITHUB_ACTIONS`, `GITHUB_RUN_ID`)
-- **GitLab CI** (`GITLAB_CI`, `CI_PIPELINE_ID`)
-- **CircleCI** (`CIRCLECI`, `CIRCLE_WORKFLOW_ID`)
-- **Jenkins** (`JENKINS_URL`, `BUILD_NUMBER`)
-- **Travis CI** (`TRAVIS`, `TRAVIS_JOB_ID`)
-- **Generic CI** (`CI=true`, `CONTINUOUS_INTEGRATION=true`)
+- **GitHub Actions** - Uses `GITHUB_*` variables
+- **GitLab CI** - Uses `CI_*` and `GITLAB_*` variables  
+- **CircleCI** - Uses `CIRCLE_*` variables
+- **Travis CI** - Uses `TRAVIS_*` variables
+- **Jenkins** - Uses `JENKINS_*` and `GIT_*` variables
+- **Local Development** - Falls back to git commands
+
+## Override Variables
+
+You can override any detected values by setting these environment variables:
+
+```bash
+# Override specific values
+export TESTPIG_GIT_BRANCH="custom-branch"
+export TESTPIG_GIT_AUTHOR="Custom Author"
+export TESTPIG_GIT_EMAIL="custom@example.com"
+export TESTPIG_CI_PROVIDER="custom-provider"
+
+# Then run your command
+npx testpig-git-env --format=export
+```
+
+## Real-World Examples
+
+### Example 1: Cypress Tests in Docker Compose
+
+```bash
+# package.json
+{
+  "scripts": {
+    "test:docker": "eval \"$(npx testpig-git-env --format=export)\" && docker compose run cypress-tests",
+    "test:docker:debug": "npx testpig-git-env --verbose && npm run test:docker"
+  }
+}
+```
+
+### Example 2: Jest Tests with Environment File
+
+```bash
+# Generate environment file
+npx testpig-git-env --format=env > .testpig.env
+
+# docker-compose.yml
+services:
+  jest-tests:
+    image: node:18
+    env_file: .testpig.env
+    command: npm test
+```
+
+### Example 3: Multi-Service Testing
+
+```bash
+# Set variables once
+eval "$(npx testpig-git-env --format=export)"
+
+# Run multiple test suites
+docker compose run unit-tests
+docker compose run integration-tests  
+docker compose run e2e-tests
+```
+
+### Example 4: CI Pipeline
+
+```yaml
+# .github/workflows/test.yml
+- name: Run Docker Tests
+  run: |
+    eval "$(npx testpig-git-env --format=export)"
+    docker compose run tests
+```
+
+## Testing Your Setup
+
+### Test Environment Variables
+
+```bash
+# Set variables
+eval "$(npx testpig-git-env --format=export)"
+
+# Check they're set
+env | grep ^TESTPIG_
+
+# Test with a simple container
+docker run --rm alpine env | grep TESTPIG_
+```
+
+### Debug Mode
+
+```bash
+# See what's being detected
+npx testpig-git-env --verbose --json
+
+# Check CI detection
+npx testpig-git-env --verbose
+```
+
+## Cross-Platform Compatibility
+
+### Windows (PowerShell)
+
+```powershell
+# PowerShell version
+$env_vars = npx testpig-git-env --format=export
+Invoke-Expression $env_vars
+docker compose run tests
+```
+
+### Windows (Command Prompt)
+
+```batch
+REM Generate .env file approach
+npx testpig-git-env --format=env > .testpig.env
+docker compose --env-file .testpig.env run tests
+```
+
+### macOS/Linux
+
+```bash
+# Standard approach
+eval "$(npx testpig-git-env --format=export)"
+docker compose run tests
+```
 
 ## Troubleshooting
 
@@ -201,47 +293,94 @@ npx testpig-git-env
 # Error: command not found
 ```
 
-**Solution**: Make sure you have a TestPig reporter installed:
+**Solution**: Install any TestPig reporter package:
 
 ```bash
 npm install @testpig/jest-reporter
-# or
-npm install @testpig/cypress-reporter
-# or any other @testpig/* package
+# or @testpig/cypress-reporter, @testpig/playwright-reporter, etc.
+```
+
+### Issue: All values show as "unknown"
+
+**Debug steps:**
+
+```bash
+# Check what's being detected
+npx testpig-git-env --verbose --json
+
+# Common causes:
+# - Not in a git repository
+# - Git not installed
+# - CI environment variables not set
+```
+
+### Issue: Variables not passed to container
+
+**Check variables are set:**
+
+```bash
+# After eval command, verify:
+env | grep ^TESTPIG_
+
+# If empty, the eval didn't work
+# Try generating .env file instead:
+npx testpig-git-env --format=env > .testpig.env
+docker compose --env-file .testpig.env run tests
 ```
 
 ### Issue: Permission denied on Windows
 
 ```bash
 # Use PowerShell instead of CMD
-$env_vars = npx testpig-git-env
-docker run --rm $env_vars my-test-image
+$env_vars = npx testpig-git-env --format=export
+Invoke-Expression $env_vars
 ```
 
-### Issue: Git commands fail in container
+## Best Practices
 
-The utility detects git information on the **host** machine, not inside the container. This is intentional and correct behavior.
+### 1. Use npm scripts
 
-### Issue: All values show as "unknown"
+```json
+{
+  "scripts": {
+    "test:docker": "eval \"$(npx testpig-git-env --format=export)\" && docker compose run tests",
+    "test:docker:debug": "npx testpig-git-env --verbose && npm run test:docker"
+  }
+}
+```
 
-Enable debug mode to see what's happening:
+### 2. Create shell aliases
 
 ```bash
-npx testpig-git-env --verbose --json
+# Add to your .bashrc or .zshrc
+alias docker-test='eval "$(npx testpig-git-env --format=export)" && docker compose run tests'
+alias docker-cypress='eval "$(npx testpig-git-env --format=export)" && docker compose run cypress'
 ```
 
-Common causes:
-- Not in a git repository
-- Git not installed on host
-- CI environment variables not set properly
+### 3. Use .gitignore for environment files
+
+```gitignore
+# .gitignore
+.testpig.env
+```
+
+### 4. Validate in CI
+
+```yaml
+# CI workflow
+- name: Validate Git Info
+  run: |
+    npx testpig-git-env --verbose --json
+    eval "$(npx testpig-git-env --format=export)"
+    echo "Branch: $TESTPIG_GIT_BRANCH"
+    echo "Commit: $TESTPIG_GIT_COMMIT"
+```
 
 ## Understanding the Flow
 
-### Two-Layer Strategy
-
 The `testpig-git-env` CLI uses a smart two-layer approach:
 
-#### Layer 1: CI Provider Detection (Automatic)
+### Layer 1: CI Provider Detection (Automatic)
 The CLI automatically detects your CI environment and reads standard CI variables:
 
 ```bash
@@ -255,68 +394,21 @@ CIRCLECI=true, CIRCLE_SHA1=abc123, CIRCLE_BRANCH=main
 TRAVIS=true, TRAVIS_COMMIT=abc123, TRAVIS_BRANCH=main
 ```
 
-#### Layer 2: TESTPIG_* Standardization
-The CLI converts everything to standardized `TESTPIG_*` format for Docker:
+### Layer 2: TESTPIG_* Standardization
+The CLI converts everything to standardized `TESTPIG_*` format:
 
 ```bash
-# What testpig-git-env outputs for Docker:
--e TESTPIG_GIT_BRANCH=main
--e TESTPIG_GIT_COMMIT=abc123
--e TESTPIG_GIT_AUTHOR="Your Name"
--e TESTPIG_GIT_EMAIL=your@email.com
--e TESTPIG_CI_PROVIDER=github
-```
-
-### Docker Compose Integration
-
-You have three options for docker-compose integration:
-
-#### Option A: CLI Handles Everything (Recommended)
-```yaml
-# docker-compose.yml
-services:
-  tests:
-    image: my-test-image
-    # No environment needed - CLI provides everything
-
-# Usage:
-# docker-compose run $(npx testpig-git-env) tests
-```
-
-#### Option B: Pass Through CI Variables
-```yaml
-# docker-compose.yml
-services:
-  tests:
-    image: my-test-image
-    environment:
-      # Pass through CI provider variables for automatic detection
-      - GITHUB_ACTIONS
-      - GITHUB_SHA
-      - GITHUB_REF
-      - GITHUB_ACTOR
-      # Add overrides if needed
-      - TESTPIG_GIT_AUTHOR=Custom Author
-```
-
-#### Option C: Full Override Mode
-```yaml
-# docker-compose.yml
-services:
-  tests:
-    image: my-test-image
-    environment:
-      # Completely override with custom values
-      - TESTPIG_GIT_BRANCH=custom-branch
-      - TESTPIG_GIT_COMMIT=custom-sha
-      - TESTPIG_GIT_AUTHOR=Custom Author
-      - TESTPIG_GIT_EMAIL=custom@email.com
-      - TESTPIG_CI_PROVIDER=custom-provider
+# What testpig-git-env outputs:
+TESTPIG_GIT_BRANCH=main
+TESTPIG_GIT_COMMIT=abc123
+TESTPIG_GIT_AUTHOR="Your Name"
+TESTPIG_GIT_EMAIL=your@email.com
+TESTPIG_CI_PROVIDER=github
 ```
 
 ### Key Point: No Manual TESTPIG_* Required
 
-**You don't need to manually pass TESTPIG_* variables!** The CLI:
+**You don't need to manually set TESTPIG_* variables!** The CLI:
 1. Reads your CI environment automatically
 2. Extracts git info from CI provider variables
 3. Converts to TESTPIG_* format for Docker
@@ -324,63 +416,56 @@ services:
 
 TESTPIG_* variables are for **overrides only**, not normal operation.
 
-## Best Practices
+## FAQ
 
-### 1. Use in npm scripts
+### Q: Do I need to modify my docker-compose.yml?
 
-```json
-{
-  "scripts": {
-    "test:docker": "docker run --rm $(npx testpig-git-env) my-test-image",
-    "test:docker:debug": "npx testpig-git-env --verbose && npm run test:docker"
-  }
-}
-```
+**A:** No, but it's recommended for clarity. Variables set in your shell are automatically inherited by Docker Compose.
 
-### 2. Create shell aliases
+### Q: What's the difference between --format=export and --format=env?
 
-```bash
-# Add to your .bashrc or .zshrc
-alias docker-test='docker run --rm $(npx testpig-git-env)'
+**A:** 
+- `--format=export` → For shell evaluation with `eval`
+- `--format=env` → For `.env` files with `--env-file`
 
-# Usage:
-docker-test my-test-image
-```
+### Q: Can I use this with Kubernetes?
 
-### 3. CI Pipeline Templates
-
-Create reusable CI templates with TestPig Docker support built-in.
-
-## Migration Guide
-
-### Before (manual environment variables)
+**A:** Yes! Generate a `.env` file and create a ConfigMap:
 
 ```bash
-docker run --rm \
-  -e GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)" \
-  -e GIT_COMMIT="$(git rev-parse HEAD)" \
-  -e GIT_AUTHOR="$(git config user.name)" \
-  my-test-image
+npx testpig-git-env --format=env > .testpig.env
+kubectl create configmap testpig-git-env --from-env-file=.testpig.env
 ```
 
-### After (automatic detection)
+### Q: Does this work in monorepos?
+
+**A:** Yes! The CLI detects git information from the repository root, regardless of which subdirectory you run it from.
+
+### Q: Can I use custom CI variables?
+
+**A:** Yes! Set override variables:
 
 ```bash
-docker run --rm $(npx testpig-git-env) my-test-image
+export TESTPIG_GIT_BRANCH="custom-branch"
+export TESTPIG_CI_PROVIDER="custom-ci"
+npx testpig-git-env --format=export
 ```
 
-The new approach:
-- ✅ Works across all CI providers
-- ✅ Handles edge cases (PRs, detached HEAD, etc.)
-- ✅ Provides consistent variable names
-- ✅ Includes debug and override capabilities
-- ✅ Works on all platforms
+## Getting Help
 
-## Next Steps
+- **CLI Help**: `npx testpig-git-env --help`
+- **Debug Mode**: `npx testpig-git-env --verbose --json`
+- **GitHub Issues**: [testpig-io/node-reporters](https://github.com/testpig-io/node-reporters)
 
-1. **Update your CI pipelines** to use `$(npx testpig-git-env)`
-2. **Remove manual git environment variable scripts**
-3. **Test across different environments** (local, CI, different platforms)
-4. **Use debug mode** if you encounter any issues
+## Summary
 
-For more information, see our [main documentation](README.md) or [open an issue](https://github.com/testpig-io/node-reporters/issues).
+The `testpig-git-env` CLI makes Docker integration effortless by:
+
+✅ **Automatic CI detection** across all major providers
+✅ **Multiple output formats** for different use cases  
+✅ **Zero configuration** in most CI environments
+✅ **Cross-platform compatibility** (Windows, macOS, Linux)
+✅ **Simple Docker Compose integration** with `eval` or `.env` files
+✅ **Comprehensive override support** for custom scenarios
+
+Choose the integration method that works best for your workflow! 🚀

@@ -22,6 +22,7 @@ interface CLIOptions {
   json: boolean;
   verbose: boolean;
   help: boolean;
+  format: 'docker' | 'env' | 'export' | 'json';
 }
 
 interface ResolvedGitInfo {
@@ -131,11 +132,68 @@ function resolveGitInfo(options: CLIOptions): ResolvedGitInfo {
 function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
   
+  // Parse format option
+  let format: 'docker' | 'env' | 'export' | 'json' = 'docker';
+  const formatIndex = args.findIndex(arg => arg.startsWith('--format='));
+  if (formatIndex !== -1) {
+    const formatValue = args[formatIndex].split('=')[1];
+    if (['docker', 'env', 'export', 'json'].includes(formatValue)) {
+      format = formatValue as 'docker' | 'env' | 'export' | 'json';
+    }
+  }
+  
+  // Override format if --json is specified (for backward compatibility)
+  if (args.includes('--json')) {
+    format = 'json';
+  }
+  
   return {
     json: args.includes('--json'),
     verbose: args.includes('--verbose') || args.includes('-v'),
-    help: args.includes('--help') || args.includes('-h')
+    help: args.includes('--help') || args.includes('-h'),
+    format
   };
+}
+
+function formatOutput(info: ResolvedGitInfo, format: 'docker' | 'env' | 'export' | 'json'): string {
+  switch (format) {
+    case 'json':
+      return JSON.stringify(info, null, 2);
+    
+    case 'env':
+      // Format for .env file
+      return [
+        `TESTPIG_GIT_BRANCH=${info.branch}`,
+        `TESTPIG_GIT_COMMIT=${info.commit}`,
+        `TESTPIG_GIT_AUTHOR=${info.author}`,
+        `TESTPIG_GIT_EMAIL=${info.email}`,
+        `TESTPIG_CI_PROVIDER=${info.provider}`,
+        `TESTPIG_CI_IS_CI=${info.isCI ? 'true' : 'false'}`
+      ].join('\n');
+    
+    case 'export':
+      // Format for shell export
+      return [
+        `export TESTPIG_GIT_BRANCH="${info.branch}"`,
+        `export TESTPIG_GIT_COMMIT="${info.commit}"`,
+        `export TESTPIG_GIT_AUTHOR="${info.author}"`,
+        `export TESTPIG_GIT_EMAIL="${info.email}"`,
+        `export TESTPIG_CI_PROVIDER="${info.provider}"`,
+        `export TESTPIG_CI_IS_CI="${info.isCI ? 'true' : 'false'}"`
+      ].join('\n');
+    
+    case 'docker':
+    default:
+      // Default Docker format
+      return [
+        `-e TESTPIG_GIT_BRANCH="${info.branch}"`,
+        `-e TESTPIG_GIT_COMMIT="${info.commit}"`,
+        `-e TESTPIG_GIT_AUTHOR="${info.author}"`,
+        `-e TESTPIG_GIT_EMAIL="${info.email}"`,
+        `-e TESTPIG_CI_PROVIDER="${info.provider}"`,
+        `-e TESTPIG_CI_IS_CI="${info.isCI ? 'true' : 'false'}"`
+      ].join(' ');
+  }
 }
 
 function showHelp(): void {
@@ -146,23 +204,41 @@ USAGE:
   npx testpig-git-env [OPTIONS]
 
 OPTIONS:
-  --json, -j     Output in JSON format
-  --verbose, -v  Show debug information
-  --help, -h     Show this help message
+  --format=FORMAT Output format: docker (default), env, export, json
+  --json, -j      Output in JSON format (same as --format=json)
+  --verbose, -v   Show debug information
+  --help, -h      Show this help message
+
+FORMATS:
+  docker          Docker environment variables (default)
+                  -e TESTPIG_GIT_BRANCH="main" -e TESTPIG_GIT_COMMIT="abc123"
+  
+  env             Environment file format (.env)
+                  TESTPIG_GIT_BRANCH=main
+                  TESTPIG_GIT_COMMIT=abc123
+  
+  export          Shell export format
+                  export TESTPIG_GIT_BRANCH="main"
+                  export TESTPIG_GIT_COMMIT="abc123"
+  
+  json            JSON format
+                  {"branch": "main", "commit": "abc123"}
 
 EXAMPLES:
-  # Basic usage - output Docker environment flags
+  # Basic usage - Docker environment flags
   npx testpig-git-env
+  docker run --rm \$(npx testpig-git-env) my-test-image
   
-  # Use with Docker
-  docker run --rm $(npx testpig-git-env) my-test-image
+  # Docker Compose with environment file
+  npx testpig-git-env --format=env > .testpig.env
+  docker compose --env-file .testpig.env run tests
+  
+  # Docker Compose with shell export
+  eval "\$(npx testpig-git-env --format=export)"
+  docker compose -f docker-compose.yml --profile tests run cypress-tests
   
   # Debug what's being detected
   npx testpig-git-env --verbose --json
-  
-  # Override specific values
-  export TESTPIG_GIT_BRANCH="custom-branch"
-  npx testpig-git-env
 
 ENVIRONMENT VARIABLES:
   Override any detected values with:
@@ -192,20 +268,8 @@ function main(): void {
   
   try {
     const gitInfo = resolveGitInfo(options);
-    
-    if (options.json) {
-      console.log(JSON.stringify(gitInfo, null, 2));
-    } else {
-      // Output Docker environment flags
-      const flags = [
-        `-e TESTPIG_GIT_BRANCH="${gitInfo.branch}"`,
-        `-e TESTPIG_GIT_COMMIT="${gitInfo.commit}"`,
-        `-e TESTPIG_GIT_AUTHOR="${gitInfo.author}"`,
-        `-e TESTPIG_GIT_EMAIL="${gitInfo.email}"`,
-        `-e TESTPIG_CI_PROVIDER="${gitInfo.provider}"`
-      ];
-      console.log(flags.join(' '));
-    }
+    const output = formatOutput(gitInfo, options.format);
+    console.log(output);
   } catch (error) {
     if (options.verbose) {
       console.error('Error:', error);
