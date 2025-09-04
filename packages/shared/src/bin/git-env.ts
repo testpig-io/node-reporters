@@ -68,15 +68,54 @@ function resolveGitInfo(options: CLIOptions): ResolvedGitInfo {
     console.error('Git info from existing module:', gitInfo);
   }
   
-  // Extract email from author field if it exists (format: "Name (email)")
-  const emailMatch = gitInfo.author.match(/\(([^)]+)\)$/);
-  const email = emailMatch ? emailMatch[1] : 'unknown';
+  // Extract email with comprehensive fallback logic
+  let email = 'unknown';
+  let authorName = gitInfo.author;
+  
+  // Extract email from the git-info author field (format: "Name (email)")
+  const authorEmailMatch = gitInfo.author.match(/\(([^)]+)\)$/);
+  if (authorEmailMatch) {
+    email = authorEmailMatch[1];
+    authorName = gitInfo.author.replace(/\s*\([^)]*\)$/, ''); // Remove email from author name
+  }
+  
+  // If no email in author, try to extract from committer field as fallback
+  if (email === 'unknown' && gitInfo.committer) {
+    const committerEmailMatch = gitInfo.committer.match(/\(([^)]+)\)$/);
+    if (committerEmailMatch) {
+      email = committerEmailMatch[1];
+    }
+  }
+  
+  // Store the original email for fallback purposes
+  const originalEmail = email !== 'unknown' ? email : null;
+  
+  // Apply TestPig overrides
+  if (process.env.TESTPIG_GIT_EMAIL) {
+    email = process.env.TESTPIG_GIT_EMAIL;
+  }
+  
+  if (process.env.TESTPIG_GIT_AUTHOR) {
+    authorName = process.env.TESTPIG_GIT_AUTHOR;
+    
+    // If the override author contains an email, extract it
+    const overrideEmailMatch = authorName.match(/\(([^)]+)\)$/);
+    if (overrideEmailMatch) {
+      email = overrideEmailMatch[1];
+      authorName = authorName.replace(/\s*\([^)]*\)$/, '');
+    }
+    // Smart fallback: if only author is overridden (no email override),
+    // preserve the original email to avoid losing it
+    else if (!process.env.TESTPIG_GIT_EMAIL && originalEmail) {
+      email = originalEmail;
+    }
+  }
   
   // Convert GitInfo to ResolvedGitInfo format
   const resolvedInfo: ResolvedGitInfo = {
     branch: gitInfo.branch,
     commit: gitInfo.commit,
-    author: gitInfo.author.replace(/\s*\([^)]*\)$/, ''), // Remove email from author name
+    author: authorName,
     email: email,
     provider: gitInfo.ciProvider || (gitInfo.isCI ? 'unknown' : 'local'),
     isCI: gitInfo.isCI
