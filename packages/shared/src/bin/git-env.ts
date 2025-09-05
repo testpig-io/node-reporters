@@ -62,8 +62,25 @@ function resolveGitInfo(options: CLIOptions): ResolvedGitInfo {
     console.error(`Process PID: ${process.pid}`);
   }
   
-  // Use the existing git-info module - this ensures 100% consistency
-  const gitInfo: GitInfo = getGitInfo();
+  // Temporarily redirect console.log to console.error to prevent debug logs from polluting stdout
+  const originalConsoleLog = console.log;
+  const originalConsoleInfo = console.info;
+  
+  // Only redirect if we're not in verbose mode (verbose mode should show all logs)
+  if (!options.verbose) {
+    console.log = console.error;
+    console.info = console.error;
+  }
+  
+  let gitInfo: GitInfo;
+  try {
+    // Use the existing git-info module - this ensures 100% consistency
+    gitInfo = getGitInfo();
+  } finally {
+    // Always restore original console functions
+    console.log = originalConsoleLog;
+    console.info = originalConsoleInfo;
+  }
   
   if (options.verbose) {
     console.error('Git info from existing module:', gitInfo);
