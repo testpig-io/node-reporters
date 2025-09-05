@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.0.11](https://github.com/testpig-io/node-reporters/compare/@testpig/shared@1.0.10...@testpig/shared@1.0.11) (2025-09-05)
+
+**Note:** Version bump only for package @testpig/shared
+
+
+
+
+
 ## [1.0.10](https://github.com/testpig-io/node-reporters/compare/@testpig/shared@1.0.9...@testpig/shared@1.0.10) (2025-09-04)
 
 **Note:** Version bump only for package @testpig/shared
